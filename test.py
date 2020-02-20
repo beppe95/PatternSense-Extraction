@@ -1,9 +1,7 @@
 import os
-import re
 from _collections import defaultdict
 from pathlib import Path
 from xml.etree import ElementTree
-
 from nltk import sent_tokenize
 
 
@@ -40,21 +38,24 @@ def parse_sew():
 def parse_xml_file(filename: str):
     xml_root = ElementTree.parse(filename).getroot()
 
-    free_text, annotations = xml_root[0], xml_root[1]
-    tok_free_text = sent_tokenize(free_text.text)
+    free_text, annotations = xml_root[0].text, xml_root[1]
+    tok_free_text = sent_tokenize(free_text)
 
-    t = tok_free_text[:2]
+    start, end, i = 0, 0, 0
+    for sent in tok_free_text:
+        token = sent.split()
+        end = start + len(token) - 1
 
-    num_tok_read, limit, i = -1, 0, 0
-    for sent in t:
-        token = re.findall(r'\w+', sent)
-        while num_tok_read < len(token):
-            num_tok_read = limit
-            print(annotations[i][2].text, annotations[i][3].text)
-            # do something with annotation
-            num_tok_read += int(annotations[i][3].text)
+        babel_id = []
+        while i <= (len(annotations) - 1) and int(annotations[i][3].text) <= end:
+            babel_id.append(annotations[i][0].text)
             i += 1
+        print(' '.join(babel_id))
+
+        start += len(token) + 1
 
 
 if __name__ == '__main__':
     parse_sew()
+    # parse_semagram_base()
+
