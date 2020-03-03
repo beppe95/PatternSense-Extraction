@@ -1,5 +1,7 @@
 import concurrent.futures
 import os
+import pickle
+import time
 from os.path import dirname
 from pathlib import Path
 
@@ -17,6 +19,7 @@ if __name__ == '__main__':
 
     complete_annotations = []
 
+    s = time.perf_counter()
     with concurrent.futures.ProcessPoolExecutor(min(32, os.cpu_count() + 4)) as executor:
         future_to_file = {executor.submit(make_subset_thread, i): i for i in range(10)}
         for future in concurrent.futures.as_completed(future_to_file):
@@ -27,4 +30,7 @@ if __name__ == '__main__':
             except Exception as exc:
                 print('Generated an exception', (file, exc))
 
-    print(complete_annotations)
+    with open('test.pkl', 'wb') as f:
+        pickle.dump(complete_annotations, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    print(time.perf_counter() - s)
