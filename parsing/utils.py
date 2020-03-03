@@ -8,6 +8,7 @@ from whoosh import index
 from whoosh.fields import Schema, TEXT
 
 DATASET_PATH = Path(dirname(dirname(__file__))) / 'sew_subset'
+DATASET_DIM = 101
 SEMAGRAM_PATH = Path(dirname(dirname(__file__))) / 'semagram_base.xml'
 
 schema = Schema(annotations=TEXT(stored=True),
@@ -72,10 +73,14 @@ def parse_xml_file(filename: str, _writer):
 if __name__ == '__main__':
     if not os.path.exists('sew_index'):
         os.mkdir('sew_index')
+        ix = index.create_in("sew_index", schema)
 
-    ix = index.create_in("sew_index", schema)
     ix = index.open_dir('sew_index')
 
-    with ix.writer(procs=4, limitmb=256, multisegment=True) as writer:
-        parse_sew(writer)
+    num_dir, checkpoint = 0, 10
+    while num_dir < DATASET_DIM:
+        writer = ix.writer(procs=os.cpu_count(), limitmb=1024, multisegment=True, batchsize=512)
+        if num_dir % 10 == 0:
+            writer.commit()
+
     # parse_semagram_base()
