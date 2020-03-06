@@ -1,18 +1,10 @@
-import os
 from _collections import defaultdict
 from os.path import dirname
 from pathlib import Path
 
 from lxml import etree
-from whoosh import index
-from whoosh.fields import Schema, TEXT
 
-DATASET_PATH = Path(dirname(dirname(__file__))) / 'sew_subset'
-DATASET_DIM = 101
 SEMAGRAM_PATH = Path(dirname(dirname(__file__))) / 'semagram_base.xml'
-
-schema = Schema(annotations=TEXT(stored=True),
-                free_text=TEXT(stored=True))
 
 
 def parse_semagram_base() -> defaultdict:
@@ -39,14 +31,6 @@ def parse_semagram_base() -> defaultdict:
     return s_dict
 
 
-'''def parse_sew(_writer):
-    for subdir in [f.path for f in os.scandir(DATASET_PATH) if f.is_dir()]:
-        print('Processing directory:', subdir)
-        for xml_file in [f.path for f in os.scandir(subdir) if f.is_file()]:
-            parse_xml_file(xml_file, _writer)
-        print('Ending processing directory:', subdir)'''
-
-
 def parse_xml_file(filename):
     with open(filename, mode='r') as semagram_base:
         magical_parser = etree.XMLParser(encoding='utf-8', recover=True)
@@ -71,19 +55,3 @@ def parse_xml_file(filename):
         start += len(token) + 1
 
     return result
-
-
-'''if __name__ == '__main__':
-    if not os.path.exists('sew_index'):
-        os.mkdir('sew_index')
-        ix = index.create_in("sew_index", schema)
-
-    ix = index.open_dir('sew_index')
-
-    num_dir, checkpoint = 0, 10
-    while num_dir < DATASET_DIM:
-        writer = ix.writer(procs=os.cpu_count(), limitmb=1024, multisegment=True, batchsize=512)
-        if num_dir % 10 == 0:
-            writer.commit()
-
-    # parse_semagram_base()'''
