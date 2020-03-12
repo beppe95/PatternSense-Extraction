@@ -3,7 +3,7 @@ import logging
 import os
 import pickle
 
-from mth.FolderProcess import FolderProcess
+from parsing.FolderProcess import FolderProcess
 
 logging.basicConfig(level=logging.INFO)
 

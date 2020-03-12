@@ -15,10 +15,9 @@ def parse_semagram_base() -> defaultdict:
 
     :return: dictionary which contains the information inside the given file.
     """
-
     with open(SEMAGRAM_PATH, mode='r') as semagram_base:
-        magical_parser = etree.XMLParser(encoding='utf-8', recover=True)
-        xml_root = etree.parse(semagram_base, magical_parser).getroot()
+        xml_parser = etree.XMLParser(encoding='utf-8', recover=True)
+        xml_root = etree.parse(semagram_base, xml_parser).getroot()
 
     s_dict = defaultdict(list)
     for semagram in xml_root:
@@ -32,9 +31,14 @@ def parse_semagram_base() -> defaultdict:
 
 
 def parse_xml_file(filename):
+    """
+
+    :param filename:
+    :return:
+    """
     with open(filename, mode='r') as semagram_base:
-        magical_parser = etree.XMLParser(encoding='utf-8', recover=True)
-        xml_root = etree.parse(semagram_base, magical_parser).getroot()
+        xml_parser = etree.XMLParser(encoding='utf-8', recover=True)
+        xml_root = etree.parse(semagram_base, xml_parser).getroot()
 
     free_text, annotations = xml_root[0].text, xml_root[1]
     tok_free_text = free_text.split('\n')
