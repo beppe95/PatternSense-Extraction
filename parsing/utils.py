@@ -19,15 +19,31 @@ def parse_semagram_base() -> defaultdict:
         xml_parser = etree.XMLParser(encoding='utf-8', recover=True)
         xml_root = etree.parse(semagram_base, xml_parser).getroot()
 
-    s_dict = defaultdict(list)
+    # s_dict = defaultdict(list)
+
+    # check_multiple_semagram_annotations(xml_root)
+
     for semagram in xml_root:
         for slot in list(semagram):
             for value in list(slot):
-                # remember to add elem to dict!
                 print((semagram.attrib['babelsynset'], semagram.attrib['name']),
                       (value.attrib['babelsynset'], value.text),
                       slot.attrib['name'])
-    return s_dict
+                '''for v in [s.split('#') for s in value.text.split(',')]:
+                    if len(v) == 1:
+                        v.append('')
+
+                print((semagram.attrib['babelsynset'], semagram.attrib['name']),
+                      (value.attrib['babelsynset'], v[0]),
+                      slot.attrib['name'])'''
+
+    '''
+      for v in [s.split('#') for s in value.text.split(',')]:
+        if len(v) == 1:
+            v.append('')
+        s_dict[semagram.attrib['name']].append((slot.attrib['name'], v[0], v[1]))
+
+    '''
 
 
 def parse_xml_file(filename):
@@ -59,3 +75,5 @@ def parse_xml_file(filename):
         start += len(token) + 1
 
     return result
+
+parse_semagram_base()

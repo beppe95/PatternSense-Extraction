@@ -18,10 +18,14 @@ def get_sentences_from_index(query: Query, index_num: int, verbose: bool):
 
     ix = index.open_dir(dir_path / Path('index_' + str(index_num)))
     with ix.searcher() as searcher:
-        query = QueryParser('free_text', ix.schema).parse('document')
+        '''
+        bn:00007922n (464),bn:00007925n (908) bag
+        bn:00012605n (907),bn:00081698n (5) bracelet
+        '''
+        query = QueryParser('annotations', ix.schema).parse('bn:00081698n')
+
         results = searcher.search(query, limit=None)
         print(results.estimated_length())
-    # return results
     return True
 
 
@@ -30,8 +34,7 @@ class IndexProcess:
     def __new__(cls, query: Query, verbose: bool):
         with concurrent.futures.ProcessPoolExecutor(os.cpu_count()) as executor:
             future_to_index = {executor.submit(get_sentences_from_index, query, index_num, verbose): index_num for
-                               index_num in
-                               range(10)}
+                               index_num in range(10)}
             for future in concurrent.futures.as_completed(future_to_index):
                 file = future_to_index[future]
                 try:
