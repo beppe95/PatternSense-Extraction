@@ -1,56 +1,53 @@
-from _collections import defaultdict
+import itertools
+import pickle
 from os.path import dirname
 from pathlib import Path
 
 from lxml import etree
 
+from data_structure.SemagramAnnotation import SemagramAnnotation
+from data_structure.Sense import Sense
+
 SEMAGRAM_PATH = Path(dirname(dirname(__file__))) / 'semagram_base.xml'
 
 
-def parse_semagram_base() -> defaultdict:
+def parse_semagram_base():
     """
     Handle 'semagram_base' XML file and generate to respective dictionary which contains:
         - key
         - value
 
-    :return: dictionary which contains the information inside the given file.
     """
     with open(SEMAGRAM_PATH, mode='r') as semagram_base:
         xml_parser = etree.XMLParser(encoding='utf-8', recover=True)
         xml_root = etree.parse(semagram_base, xml_parser).getroot()
 
-    # s_dict = defaultdict(list)
-
-    # check_multiple_semagram_annotations(xml_root)
-
+    semagram_annotations = []
     for semagram in xml_root:
-        for slot in list(semagram):
-            for value in list(slot):
-                print((semagram.attrib['babelsynset'], semagram.attrib['name']),
-                      (value.attrib['babelsynset'], value.text),
-                      slot.attrib['name'])
-                '''for v in [s.split('#') for s in value.text.split(',')]:
-                    if len(v) == 1:
-                        v.append('')
+        for s in semagram.attrib['babelsynset'].split(','):
+            for slot in list(semagram):
+                for value in list(slot):
+                    for v in value.attrib['babelsynset'].split(','):
+                        for t in value.text.split(','):
+                            sense1 = Sense(semagram.attrib['name'], s)
+                            sense2 = Sense(t.split('#')[0], v)
+                            semagram_annotations.append(SemagramAnnotation(sense1, sense2, slot.attrib['name']))
 
-                print((semagram.attrib['babelsynset'], semagram.attrib['name']),
-                      (value.attrib['babelsynset'], v[0]),
-                      slot.attrib['name'])'''
+    semagram_annotations.sort(key=lambda item: item.slot)
 
-    '''
-      for v in [s.split('#') for s in value.text.split(',')]:
-        if len(v) == 1:
-            v.append('')
-        s_dict[semagram.attrib['name']].append((slot.attrib['name'], v[0], v[1]))
+    pattern_list = [(key, list(group)) for key, group in
+                    itertools.groupby(semagram_annotations, key=lambda item: item.slot)]
 
-    '''
+    with open('../my_whoosh/querying/pattern_list.pkl', mode='wb') as output_file:
+        pickle.dump(pattern_list, output_file, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def parse_xml_file(filename):
     """
+    Parse the given XML file and bind each sentence inside it to the respective annotations.
 
-    :param filename:
-    :return:
+    :param filename: XML file's path to parse
+    :return: list containing sentences and respective annotations
     """
     with open(filename, mode='r') as semagram_base:
         xml_parser = etree.XMLParser(encoding='utf-8', recover=True)
@@ -75,5 +72,6 @@ def parse_xml_file(filename):
         start += len(token) + 1
 
     return result
+
 
 parse_semagram_base()

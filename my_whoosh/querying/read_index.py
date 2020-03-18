@@ -3,8 +3,6 @@ from os.path import dirname
 from pathlib import Path
 
 from lxml import etree
-from whoosh import index
-from whoosh.qparser import QueryParser
 
 dir_path = Path(dirname(dirname(__file__))) / 'indices' / 'index_0'
 
@@ -25,7 +23,7 @@ def make_xml(result_set):
         sentence.text = item['free_text']
 
     with open('test.xml', mode='wb') as out:
-        out.write(etree.tostring(extraction, pretty_print=True))
+        out.write(etree.tostring(extraction, xml_declaration=True, pretty_print=True))
 
     '''with open('test.xml', mode='rb') as inp:
         xml_parser = etree.XMLParser(encoding='utf-8', recover=True)
@@ -34,19 +32,27 @@ def make_xml(result_set):
     print(xml_root.tag)'''
 
 
+def new_xml():
+    if not os.path.exists('test.xml'):
+        Path('test.xml').touch()
+
+    root = etree.Element("root")
+    with open('test.xml', mode='wb') as out:
+        out.write(etree.tostring(root, xml_declaration=True, encoding='utf-8', pretty_print=True))
+
+
+def append_xml():
+    with open('test.xml', mode='rb') as input_file:
+        xml_parser = etree.XMLParser(encoding='utf-8', recover=True)
+        tree = etree.parse(input_file, xml_parser)
+        xml_root = tree.getroot()
+
+    e2 = etree.Element("e2")
+    xml_root.append(e2)
+
+    tree.write('test.xml')
+
+
 if __name__ == '__main__':
-    if os.path.exists(dir_path):
-        exists = index.exists_in(dir_path)
-        ix = index.open_dir(dir_path)
-
-        with ix.searcher() as searcher:
-            query = QueryParser('annotations', ix.schema).parse('bn:00043021n bn:00046965n')
-            results = searcher.search(query, limit=None)
-
-            make_xml(results)
-            '''print(len(results))
-            print(*results)'''
-
-            '''query = MultifieldParser(['annotations', 'free_text'], ix.schema).parse('bn:00043021n black')
-            results = searcher.search(query, limit=None)
-            print(len(results))'''
+    new_xml()
+    #append_xml()
