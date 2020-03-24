@@ -31,7 +31,7 @@ class SlotProcess:
 
         with concurrent.futures.ProcessPoolExecutor(min(32, os.cpu_count() + 4)) as executor:
             future_to_file = {executor.submit(spawn_index_process, slot_list[1][query], verbose): slot_list[1][query]
-                              for query in range(41,42)}
+                              for query in range(30, 40)}
 
             hits_list = []
             for future in concurrent.futures.as_completed(future_to_file):
@@ -59,4 +59,4 @@ if __name__ == '__main__':
     with open(PARSED_DATA_PATH, mode='rb') as inp:
         pattern_list = pickle.load(inp)
 
-    SlotProcess(pattern_list[19], True)
+    SlotProcess(pattern_list[1], True)
