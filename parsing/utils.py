@@ -11,7 +11,7 @@ from nltk import WordNetLemmatizer
 from data_structure.SemagramAnnotation import SemagramAnnotation
 from data_structure.Sense import Sense
 
-file = 'movement'
+file = 'activity'
 SEMAGRAM_PATH = Path(dirname(dirname(__file__))) / 'semagram_base.xml'
 SLOT_PATH = Path(dirname(dirname(__file__))) / 'my_whoosh' / 'xml_slots' / Path(f'{file}.xml')
 translator = str.maketrans('', '', string.punctuation)
@@ -88,14 +88,9 @@ def clean_sentence(sentence: str):
 
 
 """
-Stavo notando che nei pattern non c’è più l’indicazione del concept e del filler. 
-Nel senso che sono all’interno del pattern. 
 
-Ad esempio: <pattern direction="L_">fruit is a small</pattern>
 
 Magari potresti usare: <pattern direction="L_” c=“fruit”; f=“small">is a</pattern>
-
-Anche se cos facendo perdiamo anche l’info del synset di c e di f (se li abbiamo, potrebbero sempre servirci).
 
 Altra nota. Consideriamo questo caso:
 
@@ -111,47 +106,57 @@ def get_patterns():
         xml_parser = etree.XMLParser(encoding='utf-8')
         extraction = etree.parse(slot_file, xml_parser).getroot()
 
-    patterns_root = etree.Element("patterns", slot=file)
+    root = etree.Element("slot", name=file)
+    patterns_node = etree.SubElement(root, "patterns")
 
+    window = 8
     patterns_list = []
     for hits in extraction:
+        concept_name, concept_id = hits.attrib["name_1"], hits.attrib["babelsynset_1"]
+        filler_name, filler_id = hits.attrib['name_2'], hits.attrib['babelsynset_2']
         for hit in hits:
             sentence = clean_sentence(hit[1].text)
-            matches = re.findall(rf'\b{hits.attrib["name_1"]}\b.*?\b{hits.attrib["name_2"]}\b'
-                                 rf'|\b{hits.attrib["name_2"]}\b.*?\b{hits.attrib["name_1"]}\b',
+            matches = re.findall(rf'\b{concept_name}\b.*?\b{filler_name}\b'
+                                 rf'|\b{filler_name}\b.*?\b{concept_name}\b',
                                  sentence, overlapped=True)
-
             if not matches:
-                print(hits.attrib["name_1"], hits.attrib["name_2"], sentence)
-                print('\n')
+                pass
+                # print(f'Concept:{concept_name}, Filler:{filler_name} \n Sentence:{sentence}')
             else:
                 for match in matches:
                     splitted_match = match.split()
-                    # ridurre la window?
-                    if len(splitted_match) <= 8:
-                        index_first_marker = splitted_match.index(hits.attrib["name_1"])
-                        index_second_marker = splitted_match.index(hits.attrib["name_2"])
 
-                        # make class Pattern
-                        flag = ''
-                        if index_first_marker < index_second_marker:
+                    if len(splitted_match) < window:
+                        index_first_marker = splitted_match.index(concept_name)
+                        index_second_marker = splitted_match.index(filler_name)
+
+                        pattern_text = ' '.join(
+                            filter(lambda word: word != splitted_match[index_first_marker] and word != splitted_match[
+                                index_second_marker], splitted_match))
+
+                        if (index_first_marker + 1 == index_second_marker) or (
+                                index_second_marker + 1 == index_first_marker):
+                            flag = '*'
+                        elif index_first_marker < index_second_marker:
                             flag = 'L_'
                         elif index_first_marker > index_second_marker:
                             flag = 'R_'
-                        elif index_first_marker + 1 == index_second_marker:
-                            flag = '*'
                         else:
                             flag = 'N/A'
 
-                        patterns_list.append((match, flag))
+                        patterns_list.append((flag, concept_name, filler_name, concept_id, filler_id, pattern_text))
 
     for p in set(patterns_list):
-        root_child = etree.SubElement(patterns_root, "pattern", direction=p[1])
-        root_child.text = p[0]
-        patterns_root.append(root_child)
+        patterns_child = etree.SubElement(patterns_node, "pattern", direction=p[0])
+        value_node = etree.SubElement(patterns_child, "value",
+                                      concept_name=p[1], filler_name=p[2],
+                                      concept_babelsynset=p[3], filler_babelsynset=p[4])
+
+        value_node.text = p[5]
+        patterns_node.append(patterns_child)
 
     with open(f'{file}_patterns.xml', mode='wb') as pattern_file:
-        pattern_file.write(etree.tostring(patterns_root, xml_declaration=True, encoding='utf-8', pretty_print=True))
+        pattern_file.write(etree.tostring(root, xml_declaration=True, encoding='utf-8', pretty_print=True))
 
 
 def get_lemmas_from_babelsynset(synset: str, key: str, search_lang: str = 'EN', target_lang: str = 'EN'):
