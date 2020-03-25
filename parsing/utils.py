@@ -1,10 +1,10 @@
 import itertools
 import pickle
 import string
-import regex as re
 from os.path import dirname
 from pathlib import Path
 
+import regex as re
 from lxml import etree
 from nltk import WordNetLemmatizer
 
@@ -88,14 +88,7 @@ def clean_sentence(sentence: str):
 
 
 """
-
-
-Magari potresti usare: <pattern direction="L_” c=“fruit”; f=“small">is a</pattern>
-
-Altra nota. Consideriamo questo caso:
-
 <pattern direction="&lt;L_&gt;">boat that could only be used in large</pattern>
-
 Possiamo notare che large è relativo a cosa c’è dopo, e non a boat. Per “scartare” questi casi, 
 potremmo usare delle windows (that could only be used in -> sono 6 token), o meccanismi più “clever”
 """
@@ -106,8 +99,7 @@ def get_patterns():
         xml_parser = etree.XMLParser(encoding='utf-8')
         extraction = etree.parse(slot_file, xml_parser).getroot()
 
-    root = etree.Element("slot", name=file)
-    patterns_node = etree.SubElement(root, "patterns")
+    pattern_root = etree.Element("patterns", slot=file)
 
     window = 8
     patterns_list = []
@@ -121,42 +113,53 @@ def get_patterns():
                                  sentence, overlapped=True)
             if not matches:
                 pass
-                # print(f'Concept:{concept_name}, Filler:{filler_name} \n Sentence:{sentence}')
+                # print(f'Concept:{concept_name}, Filler:{filler_name} \nSentence:{sentence}\n')
             else:
                 for match in matches:
                     splitted_match = match.split()
-
                     if len(splitted_match) < window:
                         index_first_marker = splitted_match.index(concept_name)
                         index_second_marker = splitted_match.index(filler_name)
+
+                        if (index_first_marker + 1 == index_second_marker) or (
+                                index_second_marker + 1 == index_first_marker):
+                            direction = '*'
+                        elif index_first_marker < index_second_marker:
+                            direction = 'L_'
+                        elif index_first_marker > index_second_marker:
+                            direction = 'R_'
+                        else:
+                            direction = 'N/A'
 
                         pattern_text = ' '.join(
                             filter(lambda word: word != splitted_match[index_first_marker] and word != splitted_match[
                                 index_second_marker], splitted_match))
 
-                        if (index_first_marker + 1 == index_second_marker) or (
-                                index_second_marker + 1 == index_first_marker):
-                            flag = '*'
-                        elif index_first_marker < index_second_marker:
-                            flag = 'L_'
-                        elif index_first_marker > index_second_marker:
-                            flag = 'R_'
-                        else:
-                            flag = 'N/A'
+                        patterns_list.append(
+                            (direction, concept_name, filler_name, concept_id, filler_id, pattern_text))
 
-                        patterns_list.append((flag, concept_name, filler_name, concept_id, filler_id, pattern_text))
+    patterns_list = list(set(patterns_list))
 
-    for p in set(patterns_list):
-        patterns_child = etree.SubElement(patterns_node, "pattern", direction=p[0])
-        value_node = etree.SubElement(patterns_child, "value",
-                                      concept_name=p[1], filler_name=p[2],
-                                      concept_babelsynset=p[3], filler_babelsynset=p[4])
+    patterns_list = sorted(patterns_list, key=lambda item: (
+        item[1], item[2], item[3], item[4]))
 
-        value_node.text = p[5]
-        patterns_node.append(patterns_child)
+    grouped_patterns_list = [(key, list(group)) for key, group in
+                             itertools.groupby(patterns_list, key=lambda item: (
+                                 item[1], item[2], item[3], item[4]))]
+
+    for group in grouped_patterns_list:
+        markers = etree.SubElement(pattern_root, "markers", concept=group[0][0], filler=group[0][1],
+                                   concept_babelsynset=group[0][2], filler_babelsynset=group[0][3])
+
+        for pattern in group[1]:
+            marker_child = etree.SubElement(markers, "pattern", direction=pattern[0])
+            marker_child.text = pattern[5]
+
+        markers[:] = sorted(markers, key=lambda child_pattern: child_pattern.get('direction'))
 
     with open(f'{file}_patterns.xml', mode='wb') as pattern_file:
-        pattern_file.write(etree.tostring(root, xml_declaration=True, encoding='utf-8', pretty_print=True))
+        pattern_file.write(
+            etree.tostring(pattern_root, xml_declaration=True, encoding='utf-8', pretty_print=True))
 
 
 def get_lemmas_from_babelsynset(synset: str, key: str, search_lang: str = 'EN', target_lang: str = 'EN'):
