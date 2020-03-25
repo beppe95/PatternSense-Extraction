@@ -1,6 +1,7 @@
 import itertools
 import pickle
 import string
+from collections import defaultdict
 from os.path import dirname
 from pathlib import Path
 
@@ -20,10 +21,6 @@ lemmatizer = WordNetLemmatizer()
 
 def parse_semagram_base():
     """
-    Handle 'semagram_base' XML file and generate to respective dictionary which contains:
-        - key
-        - value
-
     """
     with open(SEMAGRAM_PATH, mode='r') as semagram_base:
         xml_parser = etree.XMLParser(encoding='utf-8', recover=True)
@@ -192,8 +189,8 @@ def get_lemmas_from_babelsynset(synset: str, key: str, search_lang: str = 'EN', 
     response = http.request('GET', url)
     results = json.loads(response.data.decode('utf-8'))
 
-    for sense in results['senses']:
-        print(sense['properties']['fullLemma'], sense['properties']['fullLemma'])
+    return set([' '.join(lemmatizer.lemmatize(sense['properties']['simpleLemma'].lower()).split('_'))
+                for sense in results['senses']])
 
 
 def get_babelsynsets_from_lemmas(lemma: str, key: str, search_lang: str = 'EN', target_lang: str = 'EN'):
@@ -230,6 +227,28 @@ def get_babelsynsets_from_lemmas(lemma: str, key: str, search_lang: str = 'EN', 
         print(sense)  # check se nel lemma ci sta quello che cerco, altrimenti cazzi.
 
 
-get_patterns()
-# get_lemmas_from_babelsynset('bn:00018038n', key='d98e5389-2438-4db4-8672-fcdd4ce6d4f9')
+def create_babelnet_dict():
+    with open(SEMAGRAM_PATH, mode='r') as semagram_base:
+        xml_parser = etree.XMLParser(encoding='utf-8', recover=True)
+        xml_root = etree.parse(semagram_base, xml_parser).getroot()
+
+    babelnet_dict = defaultdict()
+    for semagram in xml_root:
+        for s in semagram.attrib['babelsynset'].split(','):
+            babelnet_dict[s] = get_lemmas_from_babelsynset(s, key='d98e5389-2438-4db4-8672-fcdd4ce6d4f9')
+
+    with open('babel_dict.pkl', mode='wb') as output_file:
+        pickle.dump(babelnet_dict, output_file, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+with open('babel_dict.pkl', mode='rb') as inp:
+    babelnet_dict = pickle.load(inp)
+
+for k in babelnet_dict:
+    print(k, babelnet_dict[k])
+
+
+# create_babelnet_dict()
+# get_patterns()
+# get_lemmas_from_babelsynset('bn:00043021n', key='d98e5389-2438-4db4-8672-fcdd4ce6d4f9')
 # get_babelsynsets_from_lemmas('aircraft', key='d98e5389-2438-4db4-8672-fcdd4ce6d4f9')
