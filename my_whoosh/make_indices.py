@@ -17,7 +17,7 @@ def do_indexing(index_num: str):
     index_path = 'indices/index_' + index_num
     if not os.path.exists(index_path):
         os.mkdir(index_path)
-        ix = index.create_in(index_path, schema)
+        index.create_in(index_path, schema)
 
     ix = index.open_dir(index_path)
 

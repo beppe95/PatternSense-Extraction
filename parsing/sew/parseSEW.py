@@ -2,7 +2,7 @@ import concurrent.futures
 import logging
 import os
 
-from parsing.SubsetProcess import SubsetProcess
+from parsing.sew.SubsetProcess import SubsetProcess
 
 logging.basicConfig(level=logging.INFO)
 verbose = True

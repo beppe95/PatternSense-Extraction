@@ -4,7 +4,7 @@ import os
 from os.path import dirname
 from pathlib import Path
 
-from parsing.utils import parse_xml_file
+from parsing.semagram_base.semagram_utils import parse_xml_file
 
 logging.basicConfig(level=logging.INFO)
 
