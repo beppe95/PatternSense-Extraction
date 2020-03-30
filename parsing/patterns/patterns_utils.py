@@ -1,5 +1,5 @@
 import pickle
-from collections import defaultdict, OrderedDict, deque
+from collections import defaultdict, OrderedDict, deque, Counter
 from operator import itemgetter
 from os.path import dirname
 from pathlib import Path
@@ -13,17 +13,58 @@ file = 'accessory'
 PATTERN_PATH = Path(dirname(dirname(__file__))) / 'patterns' / 'data' / Path(f'{file}_patterns.xml')
 
 
-def get_pattern_supersense(synsets: list):
-    queue = deque()
-    for wn_syn in bn_to_wn_dict['bn:00009589n']:
-        queue.append(wordnet.synset(wn_syn))
+def get_pattern_supersense1(synsets: list):
+    encountered_wn_synsets = []
+    for syn in synsets:
+        print(syn)
+        '''
+        # Init deque and its possible elements.
+        # '''
+        queue = deque()
+        for wn_syn in bn_to_wn_dict[syn]:
+            s = wordnet.synset(wn_syn)
+            queue.append(s)
+            encountered_wn_synsets.append(s)
 
-    while queue:
-        wn_syn = queue.popleft()
-        print(wn_syn, wn_syn.hypernyms())
-        for hyp in wn_syn.hypernyms():
-            queue.append(hyp)
-    print(queue)
+        while queue:
+            wn_syn = queue.popleft()
+            for hyp in wn_syn.hypernyms():
+                queue.append(hyp)
+                encountered_wn_synsets.append(hyp)
+
+    sorted_cnt = OrderedDict(sorted(Counter(encountered_wn_synsets).items(), key=itemgetter(1), reverse=True))
+    for k, v in sorted_cnt.items():
+        print(k, v)
+
+
+def get_pattern_supersense2(synsets: list):
+    di = defaultdict(list)
+    for syn in synsets:
+        '''
+        # Init deque and its possible elements.
+        # '''
+        queue = deque()
+        encountered_wn_synsets = []
+        for wn_syn in bn_to_wn_dict[syn]:
+            s = wordnet.synset(wn_syn)
+            queue.append(s)
+            encountered_wn_synsets.append(s)
+
+        while queue:
+            wn_syn = queue.popleft()
+            for hyp in wn_syn.hypernyms():
+                queue.append(hyp)
+                encountered_wn_synsets.append(hyp)
+
+        di[syn] = encountered_wn_synsets
+
+    for k, v in di.items():
+        print(k,v)
+
+#     print(k, v)
+    # sorted_cnt = OrderedDict(sorted(Counter(encountered_wn_synsets).items(), key=itemgetter(1), reverse=True))
+    # for k, v in sorted_cnt.items():
+    #     print(k, v)
 
 
 with open('bn_to_wn_dict.pkl', mode='rb') as babel_file:
@@ -61,8 +102,8 @@ sorted_dict = OrderedDict(sorted(text_pattern_dict.items(), key=itemgetter(1), r
 concepts = sorted_dict[('L_', 'is a')].concept_bn_set
 fillers = sorted_dict[('L_', 'is a')].filler_bn_set
 
-get_pattern_supersense(concepts)
-
+# get_pattern_supersense1(concepts)
+get_pattern_supersense2(concepts)
 
 # supersense1_dict, supersense2_dict = None, None
 # for k, v in sorted_dict.items():
