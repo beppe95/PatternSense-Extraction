@@ -9,6 +9,7 @@ from pathlib import Path
 import urllib3
 from lxml import etree
 from nltk import WordNetLemmatizer
+from nltk.corpus import wordnet
 
 from data_structure.SemagramAnnotation import SemagramAnnotation
 from data_structure.Sense import Sense
@@ -49,7 +50,8 @@ def parse_xml_file(filename):
     return result
 
 
-def get_lemmas_from_babelsynset(synset: str, key: str, search_lang: str = 'EN', target_lang: str = 'EN'):
+def get_lemmas_from_babelsynset(synset: str, key: str, search_lang: str = 'EN', target_lang: str = 'EN',
+                                ret: str = 'OFF'):
     """
     Handles REST messages exchange with BabelNet server in order to get each gloss of our babel synset ID.
 
@@ -57,8 +59,9 @@ def get_lemmas_from_babelsynset(synset: str, key: str, search_lang: str = 'EN', 
     :param key: key used to access BabelNet REST service
     :param search_lang: search language. Default language is ENGLISH: 'EN'.
     :param target_lang: target language. Default language is ENGLISH: 'EN'.
+    :param ret: return type. 'OFF' for WordNetSense offset, 'LEMMA' for simpleLemma value.
 
-    :return:
+    :return: 'OFF' for WordNetSense offset, 'LEMMA' for simpleLemma value.
     """
 
     # key = 'd98e5389-2438-4db4-8672-fcdd4ce6d4f9'    # key1
@@ -79,8 +82,16 @@ def get_lemmas_from_babelsynset(synset: str, key: str, search_lang: str = 'EN', 
     response = http.request('GET', url)
     results = json.loads(response.data.decode('utf-8'))
 
-    return set([' '.join(lemmatizer.lemmatize(sense['properties']['simpleLemma'].lower()).split('_'))
-                for sense in results['senses']]) if 'message' not in results else set()
+    if ret == 'OFF':
+        return set([sense['properties']['wordNetOffset']
+                    for sense in results['senses'] if sense['type'] == 'WordNetSense']) if 'message' not in results \
+            else set()
+    elif ret == 'LEMMA':
+        return set([' '.join(lemmatizer.lemmatize(sense['properties']['simpleLemma'].lower()).split('_'))
+                    for sense in results['senses']]) if 'message' not in results else set()
+
+    else:
+        raise ValueError('Value for "ret" variable not handled! Must be "OFF" or "LEMMA"')
 
 
 def get_babelsynsets_from_lemmas(lemma: str, key: str, search_lang: str = 'EN', target_lang: str = 'EN'):
@@ -152,13 +163,81 @@ def parse_semagram_base():
 
     semagram_synsets_set = list(semagram_synsets_set)
     for synset in semagram_synsets_set:
-        babel_dict[synset] = get_lemmas_from_babelsynset(synset, key=key)
+        babel_dict[synset] = get_lemmas_from_babelsynset(synset, key=key, ret='LEMMA')
 
     filler_synsets_set = list(filler_synsets_set)
     for synset in filler_synsets_set:
         if synset not in babel_dict:
-            babel_dict[synset] = get_lemmas_from_babelsynset(synset, key=key)
+            babel_dict[synset] = get_lemmas_from_babelsynset(synset, key=key, ret='LEMMA')
 
-            with open(Path(dirname(dirname(__file__))) / 'indices_extraction' / 'babel_dict.pkl',
-                      mode='wb') as output_file:
-                pickle.dump(babel_dict, output_file, protocol=pickle.HIGHEST_PROTOCOL)
+    with open(Path(dirname(dirname(__file__))) / 'indices_extraction' / 'babel_dict.pkl',
+              mode='wb') as output_file:
+        pickle.dump(babel_dict, output_file, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def make_bn_to_wn_dict():
+    """
+    From semagram_base.xml:
+        - concept without WordNet Synset = 109 (100%)
+
+    After many calls to BabelNet, we got:
+        - concept without WordNet Synset = 65 (~59%)
+        - concept with WordNet Synset = 44: (~41%) oppure (100%)
+            - new Synsets = 27 (~25%) oppure (~61%)
+            - already in = 17  (~16%) oppure (~39%)
+
+    """
+    with open(SEMAGRAM_PATH, mode='r') as semagram_base:
+        xml_parser = etree.XMLParser(encoding='utf-8', recover=True)
+        xml_root = etree.parse(semagram_base, xml_parser).getroot()
+
+    no_wn_synset = set()
+    bn_to_wn_dict = defaultdict(list)
+    for semagram in xml_root:
+        for s in semagram.get('babelsynset').split(','):
+            if s:
+                if not semagram.get('synset'):
+                    no_wn_synset.add(s)
+                else:
+                    if s not in bn_to_wn_dict:
+                        bn_to_wn_dict[s].append(semagram.get('synset'))
+
+                for slot in list(semagram):
+                    for value in list(slot):
+
+                        value_syn = value.get('babelsynset')
+                        if value_syn:
+                            value_wn = value.get('wnSynset')
+                            if not value_wn:
+                                no_wn_synset.add(value_syn)
+                            else:
+                                splitted_value_syn = value_syn.split(',')
+                                splitted_value_wn = value_wn.split(',')
+
+                                if len(splitted_value_syn) == len(splitted_value_wn):
+                                    for f, b in zip(splitted_value_syn, splitted_value_wn):
+                                        if f not in bn_to_wn_dict:
+                                            bn_to_wn_dict[f].append(b)
+                                else:
+                                    for f in splitted_value_syn:
+                                        if f not in bn_to_wn_dict:
+                                            for b in splitted_value_wn:
+                                                bn_to_wn_dict[f].append(b)
+
+    for syn in no_wn_synset:
+        set_offset = get_lemmas_from_babelsynset(syn, key='34461ea6-4c3a-411f-9531-d9e3cae24954', ret='OFF')
+        if set_offset:
+            syn_offset = next(iter(set_offset))
+            wn_syn = wordnet.synset_from_pos_and_offset(syn_offset[-1], int(syn_offset[:-1]))
+            if syn not in bn_to_wn_dict:
+                bn_to_wn_dict[syn].append(wn_syn.name())
+                print(f'WN_SYN {wn_syn} found for {syn}')
+            else:
+                print(f'{syn} already inside!')
+        else:
+            print(f'No WN_SYN found for {syn}')
+
+    with open(Path(dirname(dirname(__file__))) / 'patterns' / 'bn_to_wn_dict.pkl',
+              mode='wb') as output_file:
+        pickle.dump(bn_to_wn_dict, output_file, protocol=pickle.HIGHEST_PROTOCOL)
+

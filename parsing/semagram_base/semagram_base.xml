@@ -13186,7 +13186,7 @@
 			<value babelsynset="bn:00054550n" wnSynset="metallic_element.n.01">metal#N</value>
 		</slot>
 		<slot name="content">
-			<value auto="yes" babelsynset="bn:00009589n" wnSynset="beer.n.01">beer#N</value>
+			<value auto="yes" babelsynset="bn:15357916n" wnSynset="beer.n.01">beer#N</value>
 			<value babelsynset="bn:00051471n" wnSynset="liquid.n.01">liquid#N</value>
 			<value babelsynset="bn:00076264n" wnSynset="tea.n.01">tea#N</value>
 			<value babelsynset="bn:00020414n" wnSynset="coffee.n.01">coffee#N</value>

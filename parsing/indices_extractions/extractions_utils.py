@@ -10,7 +10,7 @@ import regex as re
 from lxml import etree
 from nltk import WordNetLemmatizer
 
-file = 'user'
+file = 'time'
 SLOT_PATH = Path(dirname(dirname(__file__))) / 'indices_extractions' / 'xml_slots' / Path(f'{file}.xml')
 
 translator = str.maketrans('', '', string.punctuation)
@@ -23,7 +23,7 @@ def clean_sentence(sentence: str):
     return ' '.join(cleaned_sentence)
 
 
-def get_patterns():
+def get_patterns(stats: bool = True):
     dir_patterns_path = Path(dirname(dirname(__file__))) / 'patterns' / 'data'
     if not os.path.exists(dir_patterns_path):
         os.mkdir(dir_patterns_path)
@@ -37,6 +37,7 @@ def get_patterns():
 
     pattern_root = etree.Element("patterns", slot=file)
 
+    first_match, total_hits, total_pattern, no_match, failed_match = 0, 0, 0, 0, 0
     window = 8
     match_list = []
     for hits in extraction:
@@ -45,11 +46,15 @@ def get_patterns():
         filler_name, filler_id = hits.get('name_2').lower(), hits.get('babelsynset_2')
 
         for hit in hits:
+            total_hits += 1
             sentence = clean_sentence(hit[1].text)
             matches = re.findall(rf'\b{concept_name}\b.*?\b{filler_name}\b'
                                  rf'|\b{filler_name}\b.*?\b{concept_name}\b',
                                  sentence, overlapped=True)
-            if not matches:
+            if matches:
+                first_match += 1
+            else:
+                no_match += 1
                 splitted_sentence = sentence.split()
                 set_sentence = set(splitted_sentence)
 
@@ -80,9 +85,11 @@ def get_patterns():
                 matches = re.findall(rf'\b{concept_name}\b.*?\b{filler_name}\b'
                                      rf'|\b{filler_name}\b.*?\b{concept_name}\b',
                                      sentence, overlapped=True)
-
+                if not matches: failed_match += 1
             for m in matches:
                 match_list.append((concept_name, filler_name, concept_id, filler_id, m))
+
+    total_pattern = len(match_list)
 
     patterns_list = []
     for match in match_list:
@@ -110,6 +117,7 @@ def get_patterns():
 
     patterns_list = list(set(patterns_list))
     patterns_list = sorted(patterns_list, key=lambda item: (item[1], item[2], item[3], item[4]))
+    effective_patterns = len(patterns_list)
 
     grouped_patterns_list = defaultdict(lambda: defaultdict(list))
     for key, group in itertools.groupby(patterns_list, key=lambda item: (item[3], item[4])):
@@ -130,8 +138,17 @@ def get_patterns():
 
             markers[:] = sorted(markers, key=lambda child_pattern: child_pattern.get('direction'))
 
-    with open(dir_patterns_path / f'{file}_patterns.xml', mode='wb') as pattern_file:
-        pattern_file.write(etree.tostring(pattern_root, xml_declaration=True, encoding='utf-8', pretty_print=True))
+    stats_dump = f'SLOT: {file}\n{50 * "-"}\n' \
+        f'TOTAL HITS: {total_hits}\n1ST_MATCH: {first_match}, NO_MATCH: {no_match}\n' \
+        f'2ND_MATCH: {first_match + (no_match - failed_match)}, FAILED_MATCH: {failed_match}\n' \
+        f'ADDED_MATCH: {(first_match + (no_match - failed_match)) - first_match}\n{50 * "-"}\n' \
+        f'TOTAL_PATTERNS: {total_pattern}, EFFECTIVE_PATTERNS: {effective_patterns}\n\n'
+
+    if stats:
+        with open('stats.txt', mode='a', encoding='utf-8') as stats_file:
+            stats_file.write(stats_dump)
+    # with open(dir_patterns_path / f'{file}_patterns.xml', mode='wb') as pattern_file:
+    #     pattern_file.write(etree.tostring(pattern_root, xml_declaration=True, encoding='utf-8', pretty_print=True))
 
 
 get_patterns()
