@@ -95,7 +95,7 @@ def get_patterns(stats: bool = True):
     for match in match_list:
         splitted_match = match[4].split()
         if len(splitted_match) < window:
-            print(splitted_match)
+            # print(splitted_match)
             index_first_marker = splitted_match.index(match[0])
             index_second_marker = splitted_match.index(match[1])
 
@@ -107,7 +107,7 @@ def get_patterns(stats: bool = True):
             elif index_first_marker > index_second_marker:
                 direction = 'R_'
             else:
-                direction = 'N/A'
+                direction = 'L_R'
 
             pattern_text = ' '.join(
                 filter(lambda word: word != splitted_match[index_first_marker] and word != splitted_match[
@@ -147,8 +147,8 @@ def get_patterns(stats: bool = True):
     if stats:
         with open('stats.txt', mode='a', encoding='utf-8') as stats_file:
             stats_file.write(stats_dump)
-    # with open(dir_patterns_path / f'{file}_patterns.xml', mode='wb') as pattern_file:
-    #     pattern_file.write(etree.tostring(pattern_root, xml_declaration=True, encoding='utf-8', pretty_print=True))
+    with open(dir_patterns_path / f'{file}_patterns.xml', mode='wb') as pattern_file:
+        pattern_file.write(etree.tostring(pattern_root, xml_declaration=True, encoding='utf-8', pretty_print=True))
 
 
 get_patterns()

@@ -244,9 +244,3 @@ def make_bn_to_wn_dict():
 
     with open(Path(dirname(dirname(__file__))) / 'patterns' / 'bn_to_wn_dict.pkl', mode='wb') as output_file:
         pickle.dump(bn_to_wn_dict, output_file, protocol=pickle.HIGHEST_PROTOCOL)
-
-
-with open(Path(dirname(dirname(__file__))) / 'patterns' / 'bn_to_wn_dict.pkl', mode='rb') as output_file:
-    bn_to_wn_dict = pickle.load(output_file)
-
-print(len(bn_to_wn_dict))  # 2595 / 2726
