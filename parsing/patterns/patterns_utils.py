@@ -6,6 +6,7 @@ from pathlib import Path
 
 from lxml import etree
 from nltk.corpus import wordnet
+from numpy import zeros
 
 from data_structure.Item import Item
 
@@ -13,53 +14,51 @@ file = 'accessory'
 PATTERN_PATH = Path(dirname(dirname(__file__))) / 'patterns' / 'data' / Path(f'{file}_patterns.xml')
 
 
-def get_pattern_supersense1(synsets: list):
-    encountered_wn_synsets = []
-    for syn in synsets:
-        print(syn)
-        '''
-        # Init deque and its possible elements.
-        # '''
-        queue = deque()
-        for wn_syn in bn_to_wn_dict[syn]:
-            s = wordnet.synset(wn_syn)
-            queue.append(s)
-            encountered_wn_synsets.append(s)
+def get_all_hypernyms(wn_synset: str):
+    """
+    Init deque and its possible elements.
 
-        while queue:
-            wn_syn = queue.popleft()
-            for hyp in wn_syn.hypernyms():
-                queue.append(hyp)
-                encountered_wn_synsets.append(hyp)
+    :param wn_synset:
+    :return:
+    """
+    queue = deque()
+    queue.append(wn_synset)
+    all_hypernyms = [wn_synset]
+    while queue:
+        wn_syn = queue.popleft()
+        for hyp in wn_syn.hypernyms():
+            queue.append(hyp)
+            all_hypernyms.append(hyp)
 
-    sorted_cnt = OrderedDict(sorted(Counter(encountered_wn_synsets).items(), key=itemgetter(1), reverse=True))
-    for k, v in sorted_cnt.items():
-        print(k, v)
+    return all_hypernyms
 
 
-def get_pattern_supersense2(synsets: list):
-    di = defaultdict(list)
-    for syn in synsets:
-        '''
-        # Init deque and its possible elements.
-        # '''
-        queue = deque()
-        encountered_wn_synsets = []
-        for wn_syn in bn_to_wn_dict[syn]:
-            s = wordnet.synset(wn_syn)
-            queue.append(s)
-            encountered_wn_synsets.append(s)
+def get_pattern_supersense(synsets_pairs: list):
+    """
+    Using the first hypernym only.
 
-        while queue:
-            wn_syn = queue.popleft()
-            for hyp in wn_syn.hypernyms():
-                queue.append(hyp)
-                encountered_wn_synsets.append(hyp)
+    :param synsets_pairs:
+    :return:
+    """
+    concept, filler = synsets_pairs[4]
 
-        di[syn] = encountered_wn_synsets
+    concept_wn_synsets = get_all_hypernyms(wordnet.synset(bn_to_wn_dict[concept][0]))
+    filler_wn_synsets = get_all_hypernyms(wordnet.synset(bn_to_wn_dict[filler][0]))
 
-    for k, v in di.items():
-        print(k, v)
+    kv1 = [(k, v) for k, v in Counter(concept_wn_synsets).items()]
+    kv2 = [(k, v) for k, v in Counter(filler_wn_synsets).items()]
+
+    row_number = len(kv1)
+    col_number = len(kv2)
+    supersenses_graph = zeros(shape=(row_number, col_number), dtype=int)
+    for i in range(row_number):
+        for j in range(col_number):
+            supersenses_graph[i][j] += kv1[i][1]
+    for j in range(col_number):
+        for i in range(row_number):
+            supersenses_graph[i][j] += kv2[j][1]
+
+    print(supersenses_graph)
 
 
 with open('bn_to_wn_dict.pkl', mode='rb') as babel_file:
@@ -68,7 +67,6 @@ with open('bn_to_wn_dict.pkl', mode='rb') as babel_file:
 with open(PATTERN_PATH, mode='rb') as slot_file:
     xml_parser = etree.XMLParser(encoding='utf-8')
     patterns = etree.parse(slot_file, xml_parser).getroot()
-
 
 text_pattern_dict = defaultdict()
 for ids in patterns:
@@ -95,11 +93,5 @@ sorted_dict = OrderedDict(sorted(text_pattern_dict.items(), key=itemgetter(1), r
     ('bn:00069164n', 'bn:00009566n')]]
 """
 
-# print(sorted_dict[('L_', 'is a')])
-# concepts = sorted_dict[('L_', 'is a')].concept_bn_set
-# fillers = sorted_dict[('L_', 'is a')].filler_bn_set
-#
-# get_pattern_supersense1(concepts)
-# get_pattern_supersense2(concepts)
-
-
+concepts_fillers_pairs = sorted_dict[('L_', 'is a')].concepts_fillers_list
+get_pattern_supersense(concepts_fillers_pairs)
