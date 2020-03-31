@@ -50,8 +50,7 @@ def parse_xml_file(filename):
     return result
 
 
-def get_lemmas_from_babelsynset(synset: str, key: str, search_lang: str = 'EN', target_lang: str = 'EN',
-                                ret: str = 'OFF'):
+def get_lemmas_from_babelsynset(synset: str, key: str, ret: str, search_lang: str = 'EN', target_lang: str = 'EN'):
     """
     Handles REST messages exchange with BabelNet server in order to get each gloss of our babel synset ID.
 
@@ -86,6 +85,7 @@ def get_lemmas_from_babelsynset(synset: str, key: str, search_lang: str = 'EN', 
         return set([sense['properties']['wordNetOffset']
                     for sense in results['senses'] if sense['type'] == 'WordNetSense']) if 'message' not in results \
             else set()
+
     elif ret == 'LEMMA':
         return set([' '.join(lemmatizer.lemmatize(sense['properties']['simpleLemma'].lower()).split('_'))
                     for sense in results['senses']]) if 'message' not in results else set()
@@ -224,6 +224,11 @@ def make_bn_to_wn_dict():
                                             for b in splitted_value_wn:
                                                 bn_to_wn_dict[f].append(b)
 
+    with open('disambiguate_sentences.txt', mode='r', encoding='utf-8') as ds_file:
+        for line in ds_file:
+            if line.strip():
+                no_wn_synset.add(line.split('\n')[0].split('@')[1])
+
     for syn in no_wn_synset:
         set_offset = get_lemmas_from_babelsynset(syn, key='34461ea6-4c3a-411f-9531-d9e3cae24954', ret='OFF')
         if set_offset:
@@ -237,7 +242,11 @@ def make_bn_to_wn_dict():
         else:
             print(f'No WN_SYN found for {syn}')
 
-    with open(Path(dirname(dirname(__file__))) / 'patterns' / 'bn_to_wn_dict.pkl',
-              mode='wb') as output_file:
+    with open(Path(dirname(dirname(__file__))) / 'patterns' / 'bn_to_wn_dict.pkl', mode='wb') as output_file:
         pickle.dump(bn_to_wn_dict, output_file, protocol=pickle.HIGHEST_PROTOCOL)
 
+
+with open(Path(dirname(dirname(__file__))) / 'patterns' / 'bn_to_wn_dict.pkl', mode='rb') as output_file:
+    bn_to_wn_dict = pickle.load(output_file)
+
+print(len(bn_to_wn_dict))  # 2595 / 2726

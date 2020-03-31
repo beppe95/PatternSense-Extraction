@@ -102,8 +102,8 @@ sorted_dict = OrderedDict(sorted(text_pattern_dict.items(), key=itemgetter(1), r
 concepts = sorted_dict[('L_', 'is a')].concept_bn_set
 fillers = sorted_dict[('L_', 'is a')].filler_bn_set
 
-# get_pattern_supersense1(concepts)
-get_pattern_supersense2(concepts)
+get_pattern_supersense1(concepts)
+# get_pattern_supersense2(concepts)
 
 # supersense1_dict, supersense2_dict = None, None
 # for k, v in sorted_dict.items():
