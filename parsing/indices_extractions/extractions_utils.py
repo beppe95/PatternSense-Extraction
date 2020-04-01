@@ -142,7 +142,7 @@ def get_patterns(stats: bool = True):
         f'TOTAL HITS: {total_hits}\n1ST_MATCH: {first_match}, NO_MATCH: {no_match}\n' \
         f'2ND_MATCH: {first_match + (no_match - failed_match)}, FAILED_MATCH: {failed_match}\n' \
         f'ADDED_MATCH: {(first_match + (no_match - failed_match)) - first_match}\n{50 * "-"}\n' \
-        f'TOTAL_PATTERNS: {total_pattern}, EFFECTIVE_PATTERNS: {effective_patterns}\n\n'
+        f'TOTAL_PATTERNS: {total_pattern}, EFFECTIVE_PATTERNS: {effective_patterns}\n\n\n'
 
     if stats:
         with open('stats.txt', mode='a', encoding='utf-8') as stats_file:

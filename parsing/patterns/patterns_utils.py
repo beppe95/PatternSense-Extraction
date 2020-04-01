@@ -4,9 +4,9 @@ from operator import itemgetter
 from os.path import dirname
 from pathlib import Path
 
+import numpy as np
 from lxml import etree
 from nltk.corpus import wordnet
-from numpy import zeros
 
 from data_structure.Item import Item
 
@@ -40,20 +40,22 @@ def get_pattern_supersense(synsets_pairs: list):
     :param synsets_pairs:
     :return:
     """
-    concept, filler = synsets_pairs[4]
+    concept, filler = synsets_pairs[0]
 
     concept_wn_synsets = get_all_hypernyms(wordnet.synset(bn_to_wn_dict[concept][0]))
     filler_wn_synsets = get_all_hypernyms(wordnet.synset(bn_to_wn_dict[filler][0]))
-
+    print(filler_wn_synsets)
     kv1 = [(k, v) for k, v in Counter(concept_wn_synsets).items()]
     kv2 = [(k, v) for k, v in Counter(filler_wn_synsets).items()]
 
     row_number = len(kv1)
     col_number = len(kv2)
-    supersenses_graph = zeros(shape=(row_number, col_number), dtype=int)
+    supersenses_graph = np.zeros(shape=(row_number, col_number), dtype=int)
+
     for i in range(row_number):
         for j in range(col_number):
             supersenses_graph[i][j] += kv1[i][1]
+
     for j in range(col_number):
         for i in range(row_number):
             supersenses_graph[i][j] += kv2[j][1]

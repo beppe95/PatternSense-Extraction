@@ -31,7 +31,7 @@ class SlotProcess:
 
         with concurrent.futures.ProcessPoolExecutor(1) as executor:
             future_to_file = {executor.submit(spawn_index_process, slot_list[1][query], verbose): slot_list[1][query]
-                              for query in range(1200,1204)}
+                              for query in range(1496,1500)}
 
             hits_list = []
             for future in concurrent.futures.as_completed(future_to_file):
