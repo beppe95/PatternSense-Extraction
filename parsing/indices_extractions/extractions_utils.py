@@ -5,12 +5,11 @@ import string
 from collections import defaultdict
 from os.path import dirname
 from pathlib import Path
-
 import regex as re
 from lxml import etree
 from nltk import WordNetLemmatizer
 
-file = 'time'
+file = 'group'
 SLOT_PATH = Path(dirname(dirname(__file__))) / 'indices_extractions' / 'xml_slots' / Path(f'{file}.xml')
 
 translator = str.maketrans('', '', string.punctuation)
@@ -47,7 +46,8 @@ def get_patterns(stats: bool = True):
 
         for hit in hits:
             total_hits += 1
-            sentence = clean_sentence(hit[1].text)
+            sentence = hit[1].text.lower()
+
             matches = re.findall(rf'\b{concept_name}\b.*?\b{filler_name}\b'
                                  rf'|\b{filler_name}\b.*?\b{concept_name}\b',
                                  sentence, overlapped=True)
@@ -85,7 +85,9 @@ def get_patterns(stats: bool = True):
                 matches = re.findall(rf'\b{concept_name}\b.*?\b{filler_name}\b'
                                      rf'|\b{filler_name}\b.*?\b{concept_name}\b',
                                      sentence, overlapped=True)
-                if not matches: failed_match += 1
+                if not matches:
+                    failed_match += 1
+
             for m in matches:
                 match_list.append((concept_name, filler_name, concept_id, filler_id, m))
 
@@ -117,7 +119,6 @@ def get_patterns(stats: bool = True):
 
     patterns_list = list(set(patterns_list))
     patterns_list = sorted(patterns_list, key=lambda item: (item[1], item[2], item[3], item[4]))
-    effective_patterns = len(patterns_list)
 
     grouped_patterns_list = defaultdict(lambda: defaultdict(list))
     for key, group in itertools.groupby(patterns_list, key=lambda item: (item[3], item[4])):
@@ -138,17 +139,151 @@ def get_patterns(stats: bool = True):
 
             markers[:] = sorted(markers, key=lambda child_pattern: child_pattern.get('direction'))
 
-    stats_dump = f'SLOT: {file}\n{50 * "-"}\n' \
-        f'TOTAL HITS: {total_hits}\n1ST_MATCH: {first_match}, NO_MATCH: {no_match}\n' \
-        f'2ND_MATCH: {first_match + (no_match - failed_match)}, FAILED_MATCH: {failed_match}\n' \
-        f'ADDED_MATCH: {(first_match + (no_match - failed_match)) - first_match}\n{50 * "-"}\n' \
-        f'TOTAL_PATTERNS: {total_pattern}, EFFECTIVE_PATTERNS: {effective_patterns}\n\n\n'
-
     if stats:
+        stats_dump = f'SLOT: {file}\n{50 * "-"}\n' \
+                     f'TOTAL HITS: {total_hits}\n1ST_MATCH: {first_match}, NO_MATCH: {no_match}\n' \
+                     f'2ND_MATCH: {first_match + (no_match - failed_match)}, FAILED_MATCH: {failed_match}\n' \
+                     f'ADDED_MATCH: {(first_match + (no_match - failed_match)) - first_match}\n{50 * "-"}\n' \
+                     f'TOTAL_PATTERNS: {total_pattern}\n\n\n'
         with open('stats.txt', mode='a', encoding='utf-8') as stats_file:
             stats_file.write(stats_dump)
+
     with open(dir_patterns_path / f'{file}_patterns.xml', mode='wb') as pattern_file:
         pattern_file.write(etree.tostring(pattern_root, xml_declaration=True, encoding='utf-8', pretty_print=True))
 
 
-get_patterns()
+def extract():
+    with open('annotations_dict.pkl', mode='rb') as test_dict:
+        di = pickle.load(test_dict)
+
+    with open(SLOT_PATH, mode='rb') as slot_file:
+        xml_parser = etree.XMLParser(encoding='utf-8')
+        extraction = etree.parse(slot_file, xml_parser).getroot()
+
+    for hits in extraction:
+
+        concept_name, concept_id = hits.get("name_1").lower(), hits.get("babelsynset_1")
+        filler_name, filler_id = hits.get('name_2').lower(), hits.get('babelsynset_2')
+
+        for hit in hits:
+            if hit.get('got_by') == 'b_syn':
+                annotations = ' '.join(hit[0].text.split())
+                sentence = ' '.join(hit[1].text.lower().split())
+                print(sentence)
+                print(get_ann(concept_name, filler_name, annotations, sentence, di))
+            break
+        break
+
+
+def get_ann(name_1, name_2, annotations, sentence, di):
+    word_ann = []
+    readed_word = 0
+    for ann in annotations.split():
+        # print(sentence[readed_word:])
+        # print(readed_word)
+        lemmas = di[ann]
+        if name_1 in lemmas:
+            lemmas = list(filter(lambda elem: len(elem) >= len(name_1), lemmas))
+        elif name_2 in lemmas:
+            lemmas = list(filter(lambda elem: len(elem) >= len(name_2), lemmas))
+        else:
+            lemmas = list(filter(lambda elem: len(elem) > 2, lemmas))
+        matches = []
+        for lemma in lemmas:
+            m = re.finditer(lemma, sentence[readed_word:])
+            if m:
+                try:
+                    m = next(iter(m))
+                    matches.append((ann, lemma, m.start(), m.end()))
+                except StopIteration:
+                    pass
+            else:
+                pass
+        # print(matches)
+        if matches:
+            matches = sorted(matches, key=lambda elem: elem[1])
+            # print(matches)
+            bsyn, matched_text, start, end = get_correct_match(matches)
+            word_ann.append((bsyn, matched_text, start + readed_word, end + readed_word))
+            readed_word += end + 1
+        else:
+            pass
+
+    return word_ann
+
+
+def get_correct_match(matches: list):
+    ret = matches[0]
+    for i in range(1, len(matches)):
+        if ret[2] == matches[i][2] and ret[3] > matches[i][3]:
+            ret = matches[i]
+    return ret[0], ret[1], ret[2], ret[3]
+
+
+# search = True
+# i = 0
+# lemmas1 = list(filter(lambda elem: len(elem) > 1, di[babelsynset_1]))
+# while search and i < len(lemmas1):
+#     for m in re.finditer(lemmas1[i], sentence):
+#         if m:
+#             print(lemmas1[i])
+#             print(m.start(), m.end())
+#             search = False
+#     i += 1
+#
+# search = True
+# i = 0
+# lemmas2 = list(filter(lambda elem: len(elem) > 1, di[babelsynset_2]))
+# while search and i < len(lemmas2):
+#     for m in re.finditer(lemmas2[i], sentence):
+#         if m:
+#             print(lemmas2[i])
+#             print(m.start(), m.end())
+#             search = False
+#     i += 1
+
+# pos_tagged_sent = pos_tag(sentence.split())
+# sentence = sentence.lower()
+# filter_concept = list(filter(
+#     lambda pos_tuple: pos_tuple[0].startswith(name_1) and pos_tuple[1].startswith(babelsynset_1[-1].upper()),
+#     pos_tagged_sent))
+#
+# filter_filler = list(filter(
+#     lambda pos_tuple: pos_tuple[0].startswith(name_2) and pos_tuple[1].startswith(babelsynset_2[-1].upper()),
+#     pos_tagged_sent))
+#
+# if filter_concept and filter_filler:
+#     splitted_sent = sentence.split()
+#     for b_syn in annotations.split():
+#         w_read = 0
+#         for i in range(w_read, len(splitted_sent)):
+#             if splitted_sent[i] in di[b_syn]:
+#                 pass
+#             else:
+#                 pass
+#             w_read += 1
+#         print(w_read)
+#         break
+# word_sense_list = []
+# # devo appiccicare i babelsynset alle parole
+# for b_syn in annotations.split():
+#     lemmas = list(di[b_syn])
+#
+#     search = True
+#     i = 0
+#     while search and i < len(lemmas):
+#         matches = re.findall(rf'\b{lemmas[i]}\b', sentence, overlapped=True)
+#         if matches:
+#             search = False
+#         else:
+#             i += 1
+#     print(matches)
+#
+#     break
+# else:
+#     pass
+#     # scarto l'hit
+
+
+extract()
+# get_patterns(stats=False)

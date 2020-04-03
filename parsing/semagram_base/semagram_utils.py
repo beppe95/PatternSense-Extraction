@@ -66,6 +66,7 @@ def get_lemmas_from_babelsynset(synset: str, key: str, ret: str, search_lang: st
     # key = 'd98e5389-2438-4db4-8672-fcdd4ce6d4f9'    # key1
     # key2 = '34461ea6-4c3a-411f-9531-d9e3cae24954'   # key2
     # key3 = '8e149252-ac13-4e51-96ba-e7055f6d56e2'   # key3
+    # key4 = '9f73a72d-0ad4-4f30-bf46-5249377326cc'
 
     service_url = 'https://babelnet.io/v5/getSynset'
     params = {
@@ -87,8 +88,9 @@ def get_lemmas_from_babelsynset(synset: str, key: str, ret: str, search_lang: st
             else set()
 
     elif ret == 'LEMMA':
-        return set([' '.join(lemmatizer.lemmatize(sense['properties']['simpleLemma'].lower()).split('_'))
-                    for sense in results['senses']]) if 'message' not in results else set()
+        return set([' '.join(
+            (' '.join(lemmatizer.lemmatize(sense['properties']['simpleLemma'].lower()).split('_'))).split('-'))
+            for sense in results['senses']]) if 'message' not in results else set()
 
     else:
         raise ValueError('Value for "ret" variable not handled! Must be "OFF" or "LEMMA"')
@@ -244,3 +246,5 @@ def make_bn_to_wn_dict():
 
     with open(Path(dirname(dirname(__file__))) / 'patterns' / 'bn_to_wn_dict.pkl', mode='wb') as output_file:
         pickle.dump(bn_to_wn_dict, output_file, protocol=pickle.HIGHEST_PROTOCOL)
+
+print(get_lemmas_from_babelsynset('bn:00116917r', key='d98e5389-2438-4db4-8672-fcdd4ce6d4f9', ret='LEMMA'))
