@@ -169,9 +169,38 @@ def extract():
             if hit.get('got_by') == 'b_syn':
                 annotations = ' '.join(hit[0].text.split())
                 sentence = ' '.join(hit[1].text.lower().split())
-                print(sentence)
-                print(get_ann(concept_name, filler_name, annotations, sentence, di))
-            break
+                print(sentence, '\n')
+
+                annotated_sentence = get_ann(concept_name, filler_name, annotations, sentence, di)
+                c = filter(lambda elem: elem[0] == concept_id,
+                           annotated_sentence)
+                f = filter(lambda elem: elem[0] == filler_id,
+                           annotated_sentence)
+
+                for a in iter(c):
+                    print(a)
+                for a in iter(f):
+                    print(a)
+                print('\n')
+                # break
+            else:
+                annotations = ' '.join(hit[0].text.split())
+                sentence = ' '.join(hit[1].text.lower().split())
+                print(sentence, '\n')
+
+                annotated_sentence = get_ann(concept_name, filler_name, annotations, sentence, di)
+                c = filter(lambda elem: elem[0] == concept_id,
+                           annotated_sentence)
+                # generator sempre vuoto, non ci sarà mai un annotation con il synset del filler considerato (POS-TAG?)
+                f = filter(lambda elem: elem[0] == filler_id,
+                           annotated_sentence)
+
+                for a in iter(c):
+                    print(a)
+                for a in iter(f):
+                    print(a)
+                print('\n')
+                break
         break
 
 
