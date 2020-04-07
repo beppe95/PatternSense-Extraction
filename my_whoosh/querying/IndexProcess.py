@@ -11,6 +11,7 @@ from whoosh.qparser import QueryParser, MultifieldParser
 from data_structure.SemagramAnnotation import SemagramAnnotation
 
 dir_path = Path(dirname(dirname(__file__))) / 'indices'
+out_path = Path(dirname(dirname(__file__))) / 'querying' / 'material.txt'
 
 extraction = etree.Element("extraction")
 
@@ -33,18 +34,18 @@ def get_sentences_from_index(query_data: SemagramAnnotation, index_num: int, ver
             flag = 'b_syn'
             query = QueryParser('annotations', ix.schema).parse(
                 f'{query_data.sense1.babelsynset} {query_data.sense2.babelsynset}')
-            results = searcher.search(query, limit=None)
+            results = searcher.search(query, limit=10)
 
             if results.estimated_length() == 0:
                 flag = 'b_syn + txt'
                 query = MultifieldParser(['annotations', 'free_text'], ix.schema).parse(
                     f'{query_data.sense1.babelsynset} {query_data.sense2.text}')
-                results = searcher.search(query, limit=None)
+                results = searcher.search(query, limit=10)
         else:
             flag = 'b_syn + txt'
             query = MultifieldParser(['annotations', 'free_text'], ix.schema).parse(
                 f'{query_data.sense1.babelsynset} {query_data.sense2.text}')
-            results = searcher.search(query, limit=None)
+            results = searcher.search(query, limit=10)
 
         h = [(hit.fields(), hit.score) for hit in results]
 
@@ -54,26 +55,34 @@ def get_sentences_from_index(query_data: SemagramAnnotation, index_num: int, ver
 class IndexProcess:
 
     def __new__(cls, query: SemagramAnnotation, verbose: bool):
-        with concurrent.futures.ProcessPoolExecutor(os.cpu_count()) as executor:
+        with concurrent.futures.ThreadPoolExecutor(min(os.cpu_count() + 4, 32)) as executor:
             future_to_index = {executor.submit(get_sentences_from_index, query, index_num, verbose): index_num for
                                index_num in range(10)}
 
-            hits = etree.SubElement(extraction, "hits",
-                                    babelsynset_1=query.sense1.babelsynset, name_1=query.sense1.text,
-                                    babelsynset_2=query.sense2.babelsynset, name_2=query.sense2.text)
+            # hits = etree.SubElement(extraction, "hits",
+            #                         babelsynset_1=query.sense1.babelsynset, name_1=query.sense1.text,
+            #                         babelsynset_2=query.sense2.babelsynset, name_2=query.sense2.text)
+
+        with open(out_path, mode='a', encoding='utf-8') as out_txt:
+            out_txt.write(f'@{query.sense1.babelsynset}-{query.sense1.text},'
+                          f' {query.sense2.babelsynset}-{query.sense2.text}\n')
             for future in concurrent.futures.as_completed(future_to_index):
                 file = future_to_index[future]
                 try:
                     flag, index_results = future.result()
                     for item in index_results:
-                        hit = etree.SubElement(hits, "hit", got_by=flag, score=str(item[1]))
+                        # hit = etree.SubElement(hits, "hit", got_by=flag, score=str(item[1]))
+                        #
+                        # annotations = etree.SubElement(hit, "annotations")
+                        # sentence = etree.SubElement(hit, "sentence")
+                        #
+                        # annotations.text = item[0]['annotations']
+                        # sentence.text = item[0]['free_text']
+                        out_txt.write(f'{flag}, {str(item[1])}\n'
+                                      f'{item[0]["annotations"]}\n'
+                                      f'{item[0]["free_text"]}\n\n')
 
-                        annotations = etree.SubElement(hit, "annotations")
-                        sentence = etree.SubElement(hit, "sentence")
-
-                        annotations.text = item[0]['annotations']
-                        sentence.text = item[0]['free_text']
                 except Exception as exc:
                     print('Generated an exception', (file, exc))
 
-        return etree.tostring(hits)
+        # return etree.tostring(hits)

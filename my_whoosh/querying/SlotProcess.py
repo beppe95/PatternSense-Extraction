@@ -24,33 +24,38 @@ class SlotProcess:
         if verbose:
             logging.info(f'Querying for slot:"{slot_list[0]}" data...')
 
-        if not os.path.exists(f'{slot_list[0]}.xml'):
-            extraction = etree.Element("extraction", slot=slot_list[0])
-            with open(f'{slot_list[0]}.xml', mode='wb') as out:
-                out.write(etree.tostring(extraction, xml_declaration=True, encoding='utf-8', pretty_print=True))
+        # if not os.path.exists(f'{slot_list[0]}.xml'):
+        #     extraction = etree.Element("extraction", slot=slot_list[0])
+        #     with open(f'{slot_list[0]}.xml', mode='wb') as out:
+        #         out.write(etree.tostring(extraction, xml_declaration=True, encoding='utf-8', pretty_print=True))
+
+        if not os.path.exists(f'{slot_list[0]}.txt'):
+            with open('generalization.txt', mode='a', encoding='utf-8'):
+                print('Create file')
 
         with concurrent.futures.ProcessPoolExecutor(1) as executor:
             future_to_file = {executor.submit(spawn_index_process, slot_list[1][query], verbose): slot_list[1][query]
-                              for query in range(19,20)}
+                              for query in range(232,234)}
 
             hits_list = []
             for future in concurrent.futures.as_completed(future_to_file):
                 file = future_to_file[future]
                 try:
-                    xml_hits = future.result()
-                    hits_list.append(etree.fromstring(xml_hits))
+                    # xml_hits = future.result()
+                    # hits_list.append(etree.fromstring(xml_hits))
+                    print('ok')
                 except Exception as exc:
                     print('Generated an exception', (file, exc))
 
-            with open(f'{slot_list[0]}.xml', mode='rb') as input_file:
-                xml_parser = etree.XMLParser(encoding='utf-8', recover=True)
-                xml_root = etree.parse(input_file, xml_parser).getroot()
-
-            for hits in hits_list:
-                xml_root.append(hits)
-
-        with open(f'{slot_list[0]}.xml', mode='wb') as out:
-            out.write(etree.tostring(xml_root, xml_declaration=True, encoding='utf-8', pretty_print=True))
+        #     with open(f'{slot_list[0]}.xml', mode='rb') as input_file:
+        #         xml_parser = etree.XMLParser(encoding='utf-8', recover=True)
+        #         xml_root = etree.parse(input_file, xml_parser).getroot()
+        #
+        #     for hits in hits_list:
+        #         xml_root.append(hits)
+        #
+        # with open(f'{slot_list[0]}.xml', mode='wb') as out:
+        #     out.write(etree.tostring(xml_root, xml_declaration=True, encoding='utf-8', pretty_print=True))
 
         return f'Slot {slot_list[0]} done'
 

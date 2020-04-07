@@ -7,14 +7,16 @@ from pathlib import Path
 import numpy as np
 from lxml import etree
 from nltk.corpus import wordnet
+from nltk.corpus.reader.wordnet import Synset
 
 from data_structure.Item import Item
+from data_structure.MatrixItem import MatrixItem
 
 file = 'accessory'
 PATTERN_PATH = Path(dirname(dirname(__file__))) / 'patterns' / 'data' / Path(f'{file}_patterns.xml')
 
 
-def get_all_hypernyms(wn_synset: str):
+def get_all_hypernyms(wn_synset: Synset):
     """
     Init deque and its possible elements.
 
@@ -22,45 +24,64 @@ def get_all_hypernyms(wn_synset: str):
     :return:
     """
     queue = deque()
-    queue.append(wn_synset)
-    all_hypernyms = [wn_synset]
+    queue.append(MatrixItem(synset=wn_synset, depth=0))
+    all_hypernyms = [MatrixItem(synset=wn_synset, depth=0)]
     while queue:
         wn_syn = queue.popleft()
-        for hyp in wn_syn.hypernyms():
-            queue.append(hyp)
-            all_hypernyms.append(hyp)
+        hyps = wn_syn.synset.hypernyms()
+        for hyp in hyps:
+            filt = filter(lambda elem: elem.synset == hyp, all_hypernyms)
+            if filt:
+                try:
+                    next(iter(filt)).add_hyponym(wn_syn)
+                except StopIteration:
+                    mi = MatrixItem(synset=hyp, depth=wn_syn.depth + 1)
+                    mi.add_hyponym(wn_syn)
+                    queue.append(mi)
+                    all_hypernyms.append(mi)
 
     return all_hypernyms
 
 
 def get_pattern_supersense(synsets_pairs: list):
     """
-    Using the first hypernym only.
 
     :param synsets_pairs:
     :return:
     """
     concept, filler = synsets_pairs[0]
-
+    print(concept, filler)
     concept_wn_synsets = get_all_hypernyms(wordnet.synset(bn_to_wn_dict[concept][0]))
     filler_wn_synsets = get_all_hypernyms(wordnet.synset(bn_to_wn_dict[filler][0]))
-    print(filler_wn_synsets)
-    kv1 = [(k, v) for k, v in Counter(concept_wn_synsets).items()]
-    kv2 = [(k, v) for k, v in Counter(filler_wn_synsets).items()]
 
-    row_number = len(kv1)
-    col_number = len(kv2)
-    supersenses_graph = np.zeros(shape=(row_number, col_number), dtype=int)
+    for c in concept_wn_synsets:
+        print(c)
+        print(len(c.hyponyms))
+        print('\n')
+    for f in filler_wn_synsets:
+        print(f)
+        print(len(f.hyponyms))
+        print('\n')
 
-    for i in range(row_number):
-        for j in range(col_number):
-            supersenses_graph[i][j] += kv1[i][1]
+    # kv1 = [(k, v) for k, v in Counter(concept_wn_synsets).items()]
+    # kv2 = [(k, v) for k, v in Counter(filler_wn_synsets).items()]
+    #
+    # print(kv1)
+    # print(kv2)
 
-    for j in range(col_number):
-        for i in range(row_number):
-            supersenses_graph[i][j] += kv2[j][1]
-
-    print(supersenses_graph)
+    # row_number = len(kv1)
+    # col_number = len(kv2)
+    # supersenses_graph = np.zeros(shape=(row_number, col_number), dtype=int)
+    #
+    # for i in range(row_number):
+    #     for j in range(col_number):
+    #         supersenses_graph[i][j] += kv1[i][1]
+    #
+    # for j in range(col_number):
+    #     for i in range(row_number):
+    #         supersenses_graph[i][j] += kv2[j][1]
+    #
+    # print(supersenses_graph)
 
 
 with open('bn_to_wn_dict.pkl', mode='rb') as babel_file:
@@ -86,14 +107,17 @@ for ids in patterns:
 
 sorted_dict = OrderedDict(sorted(text_pattern_dict.items(), key=itemgetter(1), reverse=True))
 
+# for k, v in sorted_dict.items():
+#     print(k, v)
+
 """
-('L_', 'is a') 
-[4, [
-    ('bn:00009589n', 'bn:00083813v'), 
-    ('bn:00020414n', 'bn:00024410n'), 
-    ('bn:00068899n', 'bn:00027574n'), 
-    ('bn:00069164n', 'bn:00009566n')]]
+('L_', 'is') 
+[2, [
+    ('bn:00010183n', 'bn:00012339n'), 
+    ('bn:00080022n', 'bn:00012339n')
+    ]
+]
 """
 
-concepts_fillers_pairs = sorted_dict[('L_', 'is a')].concepts_fillers_list
+concepts_fillers_pairs = sorted_dict[('L_', 'is')].concepts_fillers_list
 get_pattern_supersense(concepts_fillers_pairs)

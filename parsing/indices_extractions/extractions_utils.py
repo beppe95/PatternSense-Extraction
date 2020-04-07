@@ -1,25 +1,25 @@
 import itertools
 import os
 import pickle
-import string
 from collections import defaultdict
 from os.path import dirname
 from pathlib import Path
 import regex as re
 from lxml import etree
-from nltk import WordNetLemmatizer
+from nltk import WordNetLemmatizer, pos_tag
+import inflect
 
-file = 'group'
+file = 'size'
 SLOT_PATH = Path(dirname(dirname(__file__))) / 'indices_extractions' / 'xml_slots' / Path(f'{file}.xml')
 
-translator = str.maketrans('', '', string.punctuation)
+translator = str.maketrans('', '', '!\"#$%&\'*+-./;<=>?@[\]^_`{|}~')
 lemmatizer = WordNetLemmatizer()
+engine = inflect.engine()
 
 
 def clean_sentence(sentence: str):
     cleaned_sentence = sentence.translate(translator).lower()
-    cleaned_sentence = [lemmatizer.lemmatize(word) for word in cleaned_sentence.split()]
-    return ' '.join(cleaned_sentence)
+    return ' '.join(cleaned_sentence.split())
 
 
 def get_patterns(stats: bool = True):
@@ -37,7 +37,7 @@ def get_patterns(stats: bool = True):
     pattern_root = etree.Element("patterns", slot=file)
 
     first_match, total_hits, total_pattern, no_match, failed_match = 0, 0, 0, 0, 0
-    window = 8
+
     match_list = []
     for hits in extraction:
 
@@ -45,59 +45,117 @@ def get_patterns(stats: bool = True):
         filler_name, filler_id = hits.get('name_2').lower(), hits.get('babelsynset_2')
 
         for hit in hits:
-            total_hits += 1
-            sentence = hit[1].text.lower()
 
-            matches = re.findall(rf'\b{concept_name}\b.*?\b{filler_name}\b'
-                                 rf'|\b{filler_name}\b.*?\b{concept_name}\b',
-                                 sentence, overlapped=True)
-            if matches:
-                first_match += 1
-            else:
-                no_match += 1
-                splitted_sentence = sentence.split()
-                set_sentence = set(splitted_sentence)
+            if hit.get('got_by') == 'b_syn':
+                sentence = clean_sentence(hit[1].text)
+                total_hits += 1
 
-                try:
-                    splitted_sentence.index(concept_name)
-                except ValueError:
-                    try:
-                        concept_synsets = babel_dict[concept_id]
-
-                        intersect_concept_lemmas = concept_synsets.intersection(set_sentence)
-                        if intersect_concept_lemmas:
-                            concept_name = next(iter(intersect_concept_lemmas))
-                    except KeyError:
-                        print(f'No synonyms found for {concept_name}')
-                        pass
-                try:
-                    splitted_sentence.index(filler_name)
-                except ValueError:
-                    try:
-                        filler_synsets = babel_dict[filler_id]
-
-                        intersect_filler_lemmas = filler_synsets.intersection(set_sentence)
-                        if intersect_filler_lemmas:
-                            filler_name = next(iter(intersect_filler_lemmas))
-                    except KeyError:
-                        print(f'No synonyms found for {filler_name}')
-                        pass
                 matches = re.findall(rf'\b{concept_name}\b.*?\b{filler_name}\b'
                                      rf'|\b{filler_name}\b.*?\b{concept_name}\b',
                                      sentence, overlapped=True)
-                if not matches:
-                    failed_match += 1
+                if matches:
+                    first_match += 1
+                else:
+                    no_match += 1
+                    splitted_sentence = sentence.split()
+                    set_sentence = set(splitted_sentence)
+
+                    try:
+                        splitted_sentence.index(concept_name)
+                    except ValueError:
+                        try:
+                            concept_synsets = babel_dict[concept_id]
+
+                            intersect_concept_lemmas = concept_synsets.intersection(set_sentence)
+                            if intersect_concept_lemmas:
+                                concept_name = next(iter(intersect_concept_lemmas))
+                        except KeyError:
+                            print(f'No synonyms found for {concept_name}')
+                            pass
+                    try:
+                        splitted_sentence.index(filler_name)
+                    except ValueError:
+                        try:
+                            filler_synsets = babel_dict[filler_id]
+
+                            intersect_filler_lemmas = filler_synsets.intersection(set_sentence)
+                            if intersect_filler_lemmas:
+                                filler_name = next(iter(intersect_filler_lemmas))
+                        except KeyError:
+                            print(f'No synonyms found for {filler_name}')
+                            pass
+                    matches = re.findall(rf'\b{concept_name}\b.*?\b{filler_name}\b'
+                                         rf'|\b{filler_name}\b.*?\b{concept_name}\b',
+                                         sentence, overlapped=True)
+                    if not matches:
+                        failed_match += 1
+            else:
+                matches = []
+                if filler_id:
+                    sentence = ' '.join(hit[1].text.lower().split())
+                    pos_tagged_sentence = pos_tag(sentence.split())
+
+                    f = list(filter(lambda elem: (elem[0] == filler_name or elem[0] == engine.plural(filler_name))
+                                                 and elem[1].startswith(filler_id[-1].upper()), pos_tagged_sentence))
+
+                    if f:
+                        sentence = clean_sentence(hit[1].text)
+                        total_hits += 1
+
+                        matches = re.findall(rf'\b{concept_name}\b.*?\b{filler_name}\b'
+                                             rf'|\b{filler_name}\b.*?\b{concept_name}\b',
+                                             sentence, overlapped=True)
+                        if matches:
+                            first_match += 1
+                        else:
+                            no_match += 1
+                            splitted_sentence = sentence.split()
+                            set_sentence = set(splitted_sentence)
+
+                            try:
+                                splitted_sentence.index(concept_name)
+                            except ValueError:
+                                try:
+                                    concept_synsets = babel_dict[concept_id]
+
+                                    intersect_concept_lemmas = concept_synsets.intersection(set_sentence)
+                                    if intersect_concept_lemmas:
+                                        concept_name = next(iter(intersect_concept_lemmas))
+                                except KeyError:
+                                    print(f'No synonyms found for {concept_name}')
+                                    pass
+                            try:
+                                splitted_sentence.index(filler_name)
+                            except ValueError:
+                                try:
+                                    filler_synsets = babel_dict[filler_id]
+
+                                    intersect_filler_lemmas = filler_synsets.intersection(set_sentence)
+                                    if intersect_filler_lemmas:
+                                        filler_name = next(iter(intersect_filler_lemmas))
+                                except KeyError:
+                                    print(f'No synonyms found for {filler_name}')
+                                    pass
+                            matches = re.findall(rf'\b{concept_name}\b.*?\b{filler_name}\b'
+                                                 rf'|\b{filler_name}\b.*?\b{concept_name}\b',
+                                                 sentence, overlapped=True)
+                            if not matches:
+                                failed_match += 1
+                else:
+                    print(f'No b_syn for filler {filler_name}')
+                    pass
 
             for m in matches:
                 match_list.append((concept_name, filler_name, concept_id, filler_id, m))
 
     total_pattern = len(match_list)
 
+    window = 8
     patterns_list = []
     for match in match_list:
         splitted_match = match[4].split()
         if len(splitted_match) < window:
-            # print(splitted_match)
+            print(splitted_match)
             index_first_marker = splitted_match.index(match[0])
             index_second_marker = splitted_match.index(match[1])
 
@@ -160,56 +218,79 @@ def extract():
         xml_parser = etree.XMLParser(encoding='utf-8')
         extraction = etree.parse(slot_file, xml_parser).getroot()
 
+    patterns = []
     for hits in extraction:
 
         concept_name, concept_id = hits.get("name_1").lower(), hits.get("babelsynset_1")
         filler_name, filler_id = hits.get('name_2').lower(), hits.get('babelsynset_2')
 
         for hit in hits:
+
+            annotations = ' '.join(hit[0].text.split())
+            sentence = ' '.join(hit[1].text.lower().split())
+
             if hit.get('got_by') == 'b_syn':
-                annotations = ' '.join(hit[0].text.split())
-                sentence = ' '.join(hit[1].text.lower().split())
-                print(sentence, '\n')
 
                 annotated_sentence = get_ann(concept_name, filler_name, annotations, sentence, di)
-                c = filter(lambda elem: elem[0] == concept_id,
-                           annotated_sentence)
-                f = filter(lambda elem: elem[0] == filler_id,
-                           annotated_sentence)
+                c = list(filter(lambda elem: elem[0] == concept_id, annotated_sentence))
+                f = list(filter(lambda elem: elem[0] == filler_id, annotated_sentence))
 
-                for a in iter(c):
-                    print(a)
-                for a in iter(f):
-                    print(a)
+                matches = [(x, y) for x in c for y in f]
+                print(sentence[:])
+                for m1, m2 in matches:
+                    print(m1, m2)
+                    if (m1[2] + 1 == m2[2]) or (m1[2] == m2[2] + 1):
+                        print('*')
+                        print(sentence[m1[2]:m2[2]])
+                    elif m1[2] < m2[2]:
+                        print('_L')
+                        print(sentence[m1[2]:m2[3]])
+                    elif m1[2] > m2[2]:
+                        print('_R')
+                        print(sentence[m2[2]:m1[3]])
+                    else:
+                        print('_L_R')
+                        print(sentence[m1[2]:m2[3]])
+
                 print('\n')
-                # break
             else:
-                annotations = ' '.join(hit[0].text.split())
-                sentence = ' '.join(hit[1].text.lower().split())
+                # avendo per forza il "filler_name" nella frase da ricercare, posso prendere anche ciò che è un
+                # qualcosa di plurale?
                 print(sentence, '\n')
+                pos_tagged_sentence = pos_tag(sentence.split())
 
-                annotated_sentence = get_ann(concept_name, filler_name, annotations, sentence, di)
-                c = filter(lambda elem: elem[0] == concept_id,
-                           annotated_sentence)
-                # generator sempre vuoto, non ci sarà mai un annotation con il synset del filler considerato (POS-TAG?)
-                f = filter(lambda elem: elem[0] == filler_id,
-                           annotated_sentence)
+                f = list(filter(lambda elem: (elem[0] == filler_name or elem[0] == engine.plural(filler_name))
+                                             and elem[1].startswith(filler_id[-1].upper()), pos_tagged_sentence))
 
-                for a in iter(c):
-                    print(a)
-                for a in iter(f):
-                    print(a)
-                print('\n')
-                break
-        break
+                # if f:
+                #     annotated_sentence = get_ann(concept_name, filler_name, annotations, sentence, di)
+                #     c = list(filter(lambda elem: elem[0] == concept_id, annotated_sentence))
+                #     f = list(filter(lambda elem: elem[0] == filler_id, annotated_sentence))
+                #
+                #     matches = [(x, y) for x in c for y in f]
+                #     print(sentence[:])
+                #     for m1, m2 in matches:
+                #         print(m1, m2)
+                #         if (m1[2] + 1 == m2[2]) or (m1[2] == m2[2] + 1):
+                #             print('*')
+                #             print(sentence[m1[2]:m2[2]])
+                #         elif m1[2] < m2[2]:
+                #             print('_L')
+                #             print(sentence[m1[2]:m2[3]])
+                #         elif m1[2] > m2[2]:
+                #             print('_R')
+                #             print(sentence[m2[2]:m1[3]])
+                #         else:
+                #             print('_L_R')
+                #             print(sentence[m1[2]:m2[3]])
+                #
+                #     print('\n')
 
 
 def get_ann(name_1, name_2, annotations, sentence, di):
-    word_ann = []
-    readed_word = 0
+    readed_word, word_ann = 0, []
     for ann in annotations.split():
-        # print(sentence[readed_word:])
-        # print(readed_word)
+
         lemmas = di[ann]
         if name_1 in lemmas:
             lemmas = list(filter(lambda elem: len(elem) >= len(name_1), lemmas))
@@ -217,26 +298,25 @@ def get_ann(name_1, name_2, annotations, sentence, di):
             lemmas = list(filter(lambda elem: len(elem) >= len(name_2), lemmas))
         else:
             lemmas = list(filter(lambda elem: len(elem) > 2, lemmas))
+
         matches = []
         for lemma in lemmas:
-            m = re.finditer(lemma, sentence[readed_word:])
-            if m:
+            try:
+                m = re.finditer(lemma, sentence[readed_word:])
                 try:
-                    m = next(iter(m))
-                    matches.append((ann, lemma, m.start(), m.end()))
+                    if m:
+                        m = next(iter(m))
+                        matches.append((ann, lemma, m.start(), m.end()))
                 except StopIteration:
                     pass
-            else:
+            except Exception:
                 pass
-        # print(matches)
+
         if matches:
             matches = sorted(matches, key=lambda elem: elem[1])
-            # print(matches)
             bsyn, matched_text, start, end = get_correct_match(matches)
             word_ann.append((bsyn, matched_text, start + readed_word, end + readed_word))
             readed_word += end + 1
-        else:
-            pass
 
     return word_ann
 
@@ -249,70 +329,4 @@ def get_correct_match(matches: list):
     return ret[0], ret[1], ret[2], ret[3]
 
 
-# search = True
-# i = 0
-# lemmas1 = list(filter(lambda elem: len(elem) > 1, di[babelsynset_1]))
-# while search and i < len(lemmas1):
-#     for m in re.finditer(lemmas1[i], sentence):
-#         if m:
-#             print(lemmas1[i])
-#             print(m.start(), m.end())
-#             search = False
-#     i += 1
-#
-# search = True
-# i = 0
-# lemmas2 = list(filter(lambda elem: len(elem) > 1, di[babelsynset_2]))
-# while search and i < len(lemmas2):
-#     for m in re.finditer(lemmas2[i], sentence):
-#         if m:
-#             print(lemmas2[i])
-#             print(m.start(), m.end())
-#             search = False
-#     i += 1
-
-# pos_tagged_sent = pos_tag(sentence.split())
-# sentence = sentence.lower()
-# filter_concept = list(filter(
-#     lambda pos_tuple: pos_tuple[0].startswith(name_1) and pos_tuple[1].startswith(babelsynset_1[-1].upper()),
-#     pos_tagged_sent))
-#
-# filter_filler = list(filter(
-#     lambda pos_tuple: pos_tuple[0].startswith(name_2) and pos_tuple[1].startswith(babelsynset_2[-1].upper()),
-#     pos_tagged_sent))
-#
-# if filter_concept and filter_filler:
-#     splitted_sent = sentence.split()
-#     for b_syn in annotations.split():
-#         w_read = 0
-#         for i in range(w_read, len(splitted_sent)):
-#             if splitted_sent[i] in di[b_syn]:
-#                 pass
-#             else:
-#                 pass
-#             w_read += 1
-#         print(w_read)
-#         break
-# word_sense_list = []
-# # devo appiccicare i babelsynset alle parole
-# for b_syn in annotations.split():
-#     lemmas = list(di[b_syn])
-#
-#     search = True
-#     i = 0
-#     while search and i < len(lemmas):
-#         matches = re.findall(rf'\b{lemmas[i]}\b', sentence, overlapped=True)
-#         if matches:
-#             search = False
-#         else:
-#             i += 1
-#     print(matches)
-#
-#     break
-# else:
-#     pass
-#     # scarto l'hit
-
-
-extract()
-# get_patterns(stats=False)
+get_patterns(stats=True)
