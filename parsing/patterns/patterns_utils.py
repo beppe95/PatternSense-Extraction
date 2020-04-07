@@ -24,8 +24,10 @@ def get_all_hypernyms(wn_synset: Synset):
     :return:
     """
     queue = deque()
-    queue.append(MatrixItem(synset=wn_synset, depth=0))
-    all_hypernyms = [MatrixItem(synset=wn_synset, depth=0)]
+    mi = MatrixItem(synset=wn_synset, depth=0)
+    mi.item_covered.add(wn_synset)
+    queue.append(mi)
+    all_hypernyms = [mi]
     while queue:
         wn_syn = queue.popleft()
         hyps = wn_syn.synset.hypernyms()
@@ -33,10 +35,14 @@ def get_all_hypernyms(wn_synset: Synset):
             filt = filter(lambda elem: elem.synset == hyp, all_hypernyms)
             if filt:
                 try:
-                    next(iter(filt)).add_hyponym(wn_syn)
+                    mi = next(iter(filt))
+                    mi.add_hyponym(wn_syn)
+                    mi.item_covered.update(wn_syn.item_covered)
                 except StopIteration:
                     mi = MatrixItem(synset=hyp, depth=wn_syn.depth + 1)
                     mi.add_hyponym(wn_syn)
+                    mi.add_item_cov(hyp)
+                    mi.item_covered.update(wn_syn.item_covered)
                     queue.append(mi)
                     all_hypernyms.append(mi)
 
@@ -54,14 +60,20 @@ def get_pattern_supersense(synsets_pairs: list):
     concept_wn_synsets = get_all_hypernyms(wordnet.synset(bn_to_wn_dict[concept][0]))
     filler_wn_synsets = get_all_hypernyms(wordnet.synset(bn_to_wn_dict[filler][0]))
 
-    for c in concept_wn_synsets:
-        print(c)
-        print(len(c.hyponyms))
-        print('\n')
-    for f in filler_wn_synsets:
-        print(f)
-        print(len(f.hyponyms))
-        print('\n')
+    # for c in concept_wn_synsets:
+    #     print(c)
+    #     print(len(c.hyponyms))
+    #     print(len(c.item_covered))
+    #     print('\n')
+    #
+    # for f in filler_wn_synsets:
+    #     print(f)
+    #     print(len(f.hyponyms))
+    #     print('\n')
+    #     print(len(f.item_covered))
+    #     print('\n')
+
+
 
     # kv1 = [(k, v) for k, v in Counter(concept_wn_synsets).items()]
     # kv2 = [(k, v) for k, v in Counter(filler_wn_synsets).items()]
