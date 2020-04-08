@@ -1,3 +1,4 @@
+from math import floor, ceil
 import pickle
 from collections import defaultdict, OrderedDict, deque, Counter
 from operator import itemgetter
@@ -32,68 +33,67 @@ def get_all_hypernyms(wn_synset: Synset):
         wn_syn = queue.popleft()
         hyps = wn_syn.synset.hypernyms()
         for hyp in hyps:
+
             filt = filter(lambda elem: elem.synset == hyp, all_hypernyms)
-            if filt:
-                try:
-                    mi = next(iter(filt))
-                    mi.add_hyponym(wn_syn)
-                    mi.item_covered.update(wn_syn.item_covered)
-                except StopIteration:
-                    mi = MatrixItem(synset=hyp, depth=wn_syn.depth + 1)
-                    mi.add_hyponym(wn_syn)
-                    mi.add_item_cov(hyp)
-                    mi.item_covered.update(wn_syn.item_covered)
-                    queue.append(mi)
-                    all_hypernyms.append(mi)
+            try:
+                mi = next(iter(filt))
+                mi.add_hyponym(wn_syn)
+                mi.item_covered.update(wn_syn.item_covered)
+
+                q = deque()
+                q.append(mi)
+                while q:
+                    e = q.popleft()
+                    for x in filter(lambda elem: e in elem.hyponyms, all_hypernyms):
+                        x.item_covered.update(mi.item_covered)
+                        q.append(x)
+
+            except StopIteration:
+                mi = MatrixItem(synset=hyp, depth=wn_syn.depth + 1)
+                mi.add_hyponym(wn_syn)
+                mi.add_item_cov(hyp)
+                mi.item_covered.update(wn_syn.item_covered)
+                queue.append(mi)
+                all_hypernyms.append(mi)
 
     return all_hypernyms
 
 
-def get_pattern_supersense(synsets_pairs: list):
+def get_pattern_supersense(synsets_pairs: list, cover_threshold: float = 0.7):
     """
 
     :param synsets_pairs:
+    :param cover_threshold:
     :return:
     """
-    concept, filler = synsets_pairs[0]
-    print(concept, filler)
-    concept_wn_synsets = get_all_hypernyms(wordnet.synset(bn_to_wn_dict[concept][0]))
-    filler_wn_synsets = get_all_hypernyms(wordnet.synset(bn_to_wn_dict[filler][0]))
+    for pair in synsets_pairs:
+        concept, filler = pair
+        concept_wn_synsets = get_all_hypernyms(wordnet.synset(bn_to_wn_dict[concept][0]))
+        filler_wn_synsets = get_all_hypernyms(wordnet.synset(bn_to_wn_dict[filler][0]))
 
-    # for c in concept_wn_synsets:
-    #     print(c)
-    #     print(len(c.hyponyms))
-    #     print(len(c.item_covered))
-    #     print('\n')
-    #
-    # for f in filler_wn_synsets:
-    #     print(f)
-    #     print(len(f.hyponyms))
-    #     print('\n')
-    #     print(len(f.item_covered))
-    #     print('\n')
+        li1 = sorted([(c.synset, len(c.item_covered)) for c in concept_wn_synsets], key=itemgetter(1))
+        li2 = sorted([(f.synset, len(f.item_covered)) for f in filler_wn_synsets], key=itemgetter(1))
 
+        row_number = len(li1)
+        col_number = len(li2)
+        supersenses_graph = np.zeros(shape=(row_number, col_number), dtype=int)
 
+        for i in range(row_number):
+            for j in range(col_number):
+                supersenses_graph[i][j] += li1[i][1]
 
-    # kv1 = [(k, v) for k, v in Counter(concept_wn_synsets).items()]
-    # kv2 = [(k, v) for k, v in Counter(filler_wn_synsets).items()]
-    #
-    # print(kv1)
-    # print(kv2)
+        for j in range(col_number):
+            for i in range(row_number):
+                supersenses_graph[i][j] += li2[j][1]
 
-    # row_number = len(kv1)
-    # col_number = len(kv2)
-    # supersenses_graph = np.zeros(shape=(row_number, col_number), dtype=int)
-    #
-    # for i in range(row_number):
-    #     for j in range(col_number):
-    #         supersenses_graph[i][j] += kv1[i][1]
-    #
-    # for j in range(col_number):
-    #     for i in range(row_number):
-    #         supersenses_graph[i][j] += kv2[j][1]
-    #
-    # print(supersenses_graph)
+        # discuterne con il Prof.
+        desired_cover_W = floor(np.amax(supersenses_graph) * cover_threshold)
+        # desired_cover_W = ceil(np.amax(supersenses_graph) * cover_threshold)
+
+        result = np.where(supersenses_graph == desired_cover_W)
+        for e, y in zip(result[0], result[1]):
+            print(f'{li1[e][0]}, {li2[y][0]}')
+        break
 
 
 with open('bn_to_wn_dict.pkl', mode='rb') as babel_file:
