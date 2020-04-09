@@ -1,17 +1,16 @@
-from math import floor, ceil
+from math import floor
 import pickle
-from collections import defaultdict, OrderedDict, deque, Counter
+from collections import defaultdict, OrderedDict, deque
 from operator import itemgetter
 from os.path import dirname
 from pathlib import Path
-
+from itertools import chain
 import numpy as np
 from lxml import etree
 from nltk.corpus import wordnet
 from nltk.corpus.reader.wordnet import Synset
 
 from data_structure.Item import Item
-from data_structure.MatrixItem import MatrixItem
 
 file = 'accessory'
 PATTERN_PATH = Path(dirname(dirname(__file__))) / 'patterns' / 'data' / Path(f'{file}_patterns.xml')
@@ -25,36 +24,13 @@ def get_all_hypernyms(wn_synset: Synset):
     :return:
     """
     queue = deque()
-    mi = MatrixItem(synset=wn_synset, depth=0)
-    mi.item_covered.add(wn_synset)
-    queue.append(mi)
-    all_hypernyms = [mi]
+    queue.append(wn_synset)
+    all_hypernyms = [wn_synset]
     while queue:
         wn_syn = queue.popleft()
-        hyps = wn_syn.synset.hypernyms()
-        for hyp in hyps:
-
-            filt = filter(lambda elem: elem.synset == hyp, all_hypernyms)
-            try:
-                mi = next(iter(filt))
-                mi.add_hyponym(wn_syn)
-                mi.item_covered.update(wn_syn.item_covered)
-
-                q = deque()
-                q.append(mi)
-                while q:
-                    e = q.popleft()
-                    for x in filter(lambda elem: e in elem.hyponyms, all_hypernyms):
-                        x.item_covered.update(mi.item_covered)
-                        q.append(x)
-
-            except StopIteration:
-                mi = MatrixItem(synset=hyp, depth=wn_syn.depth + 1)
-                mi.add_hyponym(wn_syn)
-                mi.add_item_cov(hyp)
-                mi.item_covered.update(wn_syn.item_covered)
-                queue.append(mi)
-                all_hypernyms.append(mi)
+        for hyp in wn_syn.hypernyms():
+            queue.append(hyp)
+            all_hypernyms.append(hyp)
 
     return all_hypernyms
 
@@ -66,34 +42,56 @@ def get_pattern_supersense(synsets_pairs: list, cover_threshold: float = 0.7):
     :param cover_threshold:
     :return:
     """
-    for pair in synsets_pairs:
-        concept, filler = pair
-        concept_wn_synsets = get_all_hypernyms(wordnet.synset(bn_to_wn_dict[concept][0]))
-        filler_wn_synsets = get_all_hypernyms(wordnet.synset(bn_to_wn_dict[filler][0]))
+    all_pairs_hypernyms = [(
+        get_all_hypernyms(wordnet.synset(bn_to_wn_dict[pair[0]][0])),
+        get_all_hypernyms(wordnet.synset(bn_to_wn_dict[pair[1]][0]))
+    ) for pair in synsets_pairs]
 
-        li1 = sorted([(c.synset, len(c.item_covered)) for c in concept_wn_synsets], key=itemgetter(1))
-        li2 = sorted([(f.synset, len(f.item_covered)) for f in filler_wn_synsets], key=itemgetter(1))
+    concepts_hypernyms_dict = {k: v for v, k in
+                               enumerate(set([s for hyp_pair in all_pairs_hypernyms for s in hyp_pair[0]]))}
 
-        row_number = len(li1)
-        col_number = len(li2)
-        supersenses_graph = np.zeros(shape=(row_number, col_number), dtype=int)
+    fillers_hypernyms_dict = {k: v for v, k in
+                              enumerate(set([s for hyp_pair in all_pairs_hypernyms for s in hyp_pair[1]]))}
 
-        for i in range(row_number):
-            for j in range(col_number):
-                supersenses_graph[i][j] += li1[i][1]
+    row_number = len(concepts_hypernyms_dict.keys())
+    col_number = len(fillers_hypernyms_dict.keys())
+    supersenses_graph = np.zeros(shape=(row_number, col_number), dtype=int)
 
-        for j in range(col_number):
-            for i in range(row_number):
-                supersenses_graph[i][j] += li2[j][1]
+    for hyp_pair in all_pairs_hypernyms:
+        for ws1 in hyp_pair[0]:
+            i = concepts_hypernyms_dict[ws1]
+            for ws2 in hyp_pair[1]:
+                j = fillers_hypernyms_dict[ws2]
+                supersenses_graph[i, j] += 1
 
-        # discuterne con il Prof.
-        desired_cover_W = floor(np.amax(supersenses_graph) * cover_threshold)
-        # desired_cover_W = ceil(np.amax(supersenses_graph) * cover_threshold)
+        for ws2 in hyp_pair[1]:
+            j = fillers_hypernyms_dict[ws2]
+            for ws1 in hyp_pair[0]:
+                i = concepts_hypernyms_dict[ws1]
+                supersenses_graph[i, j] += 1
 
-        result = np.where(supersenses_graph == desired_cover_W)
-        for e, y in zip(result[0], result[1]):
-            print(f'{li1[e][0]}, {li2[y][0]}')
-        break
+    desired_cover_W = floor(np.amax(supersenses_graph) * cover_threshold)
+
+    result_W = np.where(supersenses_graph >= desired_cover_W)
+
+    supersenses_set = set(chain.from_iterable(
+        (list(concepts_hypernyms_dict.keys())[list(concepts_hypernyms_dict.values()).index(e)],
+         list(fillers_hypernyms_dict.keys())[list(fillers_hypernyms_dict.values()).index(y)])
+        for e, y in zip(result_W[0], result_W[1])
+    )) if result_W else Exception('Empty set')
+
+    n_supersense_hyper = {s: len(get_all_hypernyms(s)) - 1 for s in supersenses_set}
+
+    temp_supersenses_list = [(list(concepts_hypernyms_dict.keys())[list(concepts_hypernyms_dict.values()).index(e)],
+                              list(fillers_hypernyms_dict.keys())[list(fillers_hypernyms_dict.values()).index(y)])
+                             for e, y in zip(result_W[0], result_W[1])]
+
+    supersenses_list = sorted([((super_c, n_supersense_hyper[super_c]), (super_f, n_supersense_hyper[super_f])) for
+                               super_c, super_f in temp_supersenses_list], key=lambda item: (item[0][1], item[1][1]),
+                              reverse=True)
+
+    for ss in supersenses_list:
+        print(ss)
 
 
 with open('bn_to_wn_dict.pkl', mode='rb') as babel_file:
@@ -123,13 +121,15 @@ sorted_dict = OrderedDict(sorted(text_pattern_dict.items(), key=itemgetter(1), r
 #     print(k, v)
 
 """
-('L_', 'is') 
-[2, [
-    ('bn:00010183n', 'bn:00012339n'), 
-    ('bn:00080022n', 'bn:00012339n')
-    ]
-]
+('R_', 'into the')
+ [4, [
+        ('bn:00071766n', 'bn:00045342n'), 
+        ('bn:00012873n', 'bn:00014249n'), 
+        ('bn:00007329n', 'bn:00077910n'), 
+        ('bn:00018038n', 'bn:00012873n')
+     ]
+ ]
 """
 
-concepts_fillers_pairs = sorted_dict[('L_', 'is')].concepts_fillers_list
+concepts_fillers_pairs = sorted_dict[('R_', 'into the')].concepts_fillers_list
 get_pattern_supersense(concepts_fillers_pairs)

@@ -30,12 +30,12 @@ class SlotProcess:
         #         out.write(etree.tostring(extraction, xml_declaration=True, encoding='utf-8', pretty_print=True))
 
         if not os.path.exists(f'{slot_list[0]}.txt'):
-            with open('generalization.txt', mode='a', encoding='utf-8'):
+            with open(f'{slot_list[0]}.txt', mode='a', encoding='utf-8'):
                 print('Create file')
 
         with concurrent.futures.ProcessPoolExecutor(1) as executor:
             future_to_file = {executor.submit(spawn_index_process, slot_list[1][query], verbose): slot_list[1][query]
-                              for query in range(232,234)}
+                              for query in range(314,316)}
 
             hits_list = []
             for future in concurrent.futures.as_completed(future_to_file):
