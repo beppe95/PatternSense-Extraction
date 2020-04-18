@@ -33,19 +33,21 @@ class SlotProcess:
             with open(f'{slot_list[0]}.txt', mode='a', encoding='utf-8'):
                 print('Create file')
 
-        with concurrent.futures.ProcessPoolExecutor(1) as executor:
-            future_to_file = {executor.submit(spawn_index_process, slot_list[1][query], verbose): slot_list[1][query]
-                              for query in range(314,316)}
+        print(slot_list[1][499])
 
-            hits_list = []
-            for future in concurrent.futures.as_completed(future_to_file):
-                file = future_to_file[future]
-                try:
-                    # xml_hits = future.result()
-                    # hits_list.append(etree.fromstring(xml_hits))
-                    print('ok')
-                except Exception as exc:
-                    print('Generated an exception', (file, exc))
+        # with concurrent.futures.ProcessPoolExecutor(1) as executor:
+        #     future_to_file = {executor.submit(spawn_index_process, slot_list[1][query], verbose): slot_list[1][query]
+        #                       for query in range(495,496)}
+        #
+        #     hits_list = []
+        #     for future in concurrent.futures.as_completed(future_to_file):
+        #         file = future_to_file[future]
+        #         try:
+        #             # xml_hits = future.result()
+        #             # hits_list.append(etree.fromstring(xml_hits))
+        #             print('ok')
+        #         except Exception as exc:
+        #             print('Generated an exception', (file, exc))
 
         #     with open(f'{slot_list[0]}.xml', mode='rb') as input_file:
         #         xml_parser = etree.XMLParser(encoding='utf-8', recover=True)
